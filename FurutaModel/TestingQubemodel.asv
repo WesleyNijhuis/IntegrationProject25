@@ -5,13 +5,13 @@
 clear; clc; close all
 
 %% 1) Physical parameters
-I_rzz = 2.28e-4;      % arm inertia about z [kg·m^2]
+I_rzz = 5e-4;      % arm inertia about z [kg·m^2]
 I_pzz = 1.33e-4;      % pendulum inertia about hinge [kg·m^2]
 m_p   = 0.024;      % pendulum mass [kg]
 L_r   = 0.085;       % arm length [m]
 L_p   = 0.129;       % pendulum length [m]
 mu_th = 0.000043;      % viscous friction on theta [N·m·s/rad]
-mu_al = 1e-4;      % viscous friction on alpha [N·m·s/rad]
+mu_al = 1e-3;      % viscous friction on alpha [N·m·s/rad]
 K     = 0.042;      % motor torque constant [N·m/A]
 K_u   = 1;         % amplifier gain
 R     = 8.4;         % motor resistance [Ω]
