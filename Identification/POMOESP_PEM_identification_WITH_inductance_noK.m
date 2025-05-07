@@ -34,7 +34,7 @@ plot(ymeas(:,2))
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
 rng(1,"twister");
-theta_init =  0.01 * rand(11,1);
+theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 
 % Set 1
 [A0, B0, C0, D0, x00] = theta2matrices(theta_init);
@@ -75,7 +75,7 @@ load('../Data/Sweep1 alpha.mat');   % loading alpha's
 load('../Data/Sweep1 theta.mat');   % loading theta's
 load('../Data/Sweep1 input.mat');   % loading inputs
 
-data_end = 10000; %for debugging
+data_end = 15000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 u = uin(data_begin:data_end).';            

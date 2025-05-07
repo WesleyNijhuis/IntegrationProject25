@@ -5,7 +5,7 @@ load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
 load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
 load('../Data/Sweep0.001to7 input.mat');   % loading inputs
 
-data_end = 6000; %for debugging
+data_end = 10000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 u = uin(data_begin:data_end).';            
@@ -33,8 +33,11 @@ plot(ymeas(:,2))
 % yt = ymeas(1:round2even(end*f_t));        % output for train-set
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
-rng(1,"twister");
-theta_init =  0.01 * rand(11,1);
+
+% initial guess (from paper), still need to guess damping
+b1 = 0.0015; 
+b2 = 0.0005;
+theta_init =  [-38.26;-151.88;-2548.8*b1;2519.2*b1;-36.21;-2519.2*b2;-10001*b2;107.05;105.8;-7241;862];
 
 % Set 1
 [A0, B0, C0, D0, x00] = theta2matrices(theta_init);
@@ -47,7 +50,7 @@ theta_init =  0.01 * rand(11,1);
 %T_s = 0.01; % sampling time
 init_sys = idss(A0, B0, C0, D0); %x0 is 0
 %init_sys.x0 = x00;
-%init_sys.Ts = 0.01;
+init_sys.Ts = 0;
 init_sys.Structure.A.Free = [[0,0,0,0,0];
                              [0,0,0,0,0];
                              [0,1,1,1,1];
@@ -58,9 +61,10 @@ init_sys.Structure.C.Free = zeros(2,5);
 init_sys.Structure.D.Free = 0;
 
 training_data = [ymeas,u];
-opt = ssestOptions('Display','on','SearchMethod','auto');
-opt.SearchOptions.MaxIterations = 2000;
-opt.InitialState = 'estimate';
+opt = ssestOptions('Display','on','SearchMethod','lm');
+opt.SearchOptions.MaxIterations = 100000;
+opt.SearchOptions.Tolerance = 0.01;
+%opt.InitialState = 'estimate';
 sys = pem(training_data, init_sys,opt);
 
 disp('Results theta 1, set 1')
