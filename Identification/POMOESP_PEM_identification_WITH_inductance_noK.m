@@ -5,14 +5,17 @@ load('../Data/Sweep2 alpha.mat');   % loading alpha's
 load('../Data/Sweep2 theta.mat');   % loading theta's
 load('../Data/Sweep2 input.mat');   % loading inputs
 
-data_end = 10000; %for debugging
+alpha = alpha(:,2);
+theta = theta(:,2);
+
+data_end = 8000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-u = uin(data_begin:data_end).';            
+uin = u(data_begin:data_end,2);            
 dt = 0.01;
-t = dt*(1:1:size(u,1)).';
+t = dt*(1:1:size(uin,1)).';
 
-plot(u)
+plot(uin)
 figure
 plot(ymeas(:,1))
 figure
@@ -33,7 +36,6 @@ plot(ymeas(:,2))
 % yt = ymeas(1:round2even(end*f_t));        % output for train-set
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
-rng(1,"twister");
 theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 
 % Set 1
@@ -51,7 +53,7 @@ init_sys = idss(A0, B0, C0, D0); %x0 is 0
 init_sys.Ts = dt;
 
 
-training_data = [ymeas,u];
+training_data = [ymeas,uin];
 opt = ssestOptions('Display','on','SearchMethod','auto');
 opt.SearchOptions.MaxIterations = 2000;
 opt.SearchOptions.Tolerance = 0.000001;
@@ -69,7 +71,7 @@ Cbar = sys.C
 D = sys.D
 x0 = sys.x0
 
-%% Validation
+%% Validation (for every test do two runs)
 
 load('../Data/Sweep1 alpha.mat');   % loading alpha's
 load('../Data/Sweep1 theta.mat');   % loading theta's
@@ -78,14 +80,14 @@ load('../Data/Sweep1 input.mat');   % loading inputs
 data_end = 15000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-u = uin(data_begin:data_end).';            
+uin = u(data_begin:data_end).';            
 dt = 0.01;
-t = dt*(1:1:size(u,1)).';
+t = dt*(1:1:size(uin,1)).';
 
-validation_data = [ymeas,u];
+validation_data = [ymeas,uin];
 compare(validation_data,sys)
 
-%% (modal) Transormation
+%% (modal) Transformation
 sys_m = canon(sys, 'modal)')
 
 step(sys)
@@ -95,11 +97,11 @@ hold off
 legend()
 
 %% LQR design
-q1 = 1000;
+q1 = 25;
 q2 = 1;
-q3 = 1;
+q3 = 3;
 Q = diag([q1, q1, q2, q2, q3]);
-R = [1000];
+R = [1];
 [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
 
 lqsys = sys_m % printing original matrices
@@ -108,7 +110,7 @@ DC_gain = dcgain(lqsys);
 G = 1/DC_gain(1);
 lqsys.B = G*lqsys.B;
 %pzplot(lqsys)
-impulse(lqsys)
+step(lqsys)
 grid on
 %[yout,tout]
 
