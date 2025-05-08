@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
-load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
-load('../Data/Sweep0.001to7 input.mat');   % loading inputs
+load('../Data/Sweep2 alpha.mat');   % loading alpha's
+load('../Data/Sweep2 theta.mat');   % loading theta's
+load('../Data/Sweep2 input.mat');   % loading inputs
 
 data_end = 10000; %for debugging
 data_begin = 1;
@@ -85,6 +85,33 @@ t = dt*(1:1:size(u,1)).';
 validation_data = [ymeas,u];
 compare(validation_data,sys)
 
+%% (modal) Transormation
+sys_m = canon(sys, 'modal)')
+
+step(sys)
+hold on
+step(sys_m)
+hold off
+legend()
+
+%% LQR design
+q1 = 1000;
+q2 = 1;
+q3 = 1;
+Q = diag([q1, q1, q2, q2, q3]);
+R = [1000];
+[P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
+
+lqsys = sys_m % printing original matrices
+lqsys.A = lqsys.A - lqsys.B*K;
+DC_gain = dcgain(lqsys);
+G = 1/DC_gain(1);
+lqsys.B = G*lqsys.B;
+%pzplot(lqsys)
+impulse(lqsys)
+grid on
+%[yout,tout]
+
 %% Transform system to CT for parameters
 
 sys_c = d2c(sys,'zoh');
@@ -93,6 +120,7 @@ hold on
 impulse(sys)
 hold off
 legend()
+
 
 %%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
 
@@ -132,6 +160,7 @@ hold off
 legend()
 
 % Note: this gives state matrices for the sampled system
+
 
 %% Estimating CT structured parameters
 

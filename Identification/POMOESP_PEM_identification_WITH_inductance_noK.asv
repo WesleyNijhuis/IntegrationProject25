@@ -5,7 +5,7 @@ load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
 load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
 load('../Data/Sweep0.001to7 input.mat');   % loading inputs
 
-data_end = 8000; %for debugging
+data_end = 10000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 u = uin(data_begin:data_end).';            
@@ -33,11 +33,8 @@ plot(ymeas(:,2))
 % yt = ymeas(1:round2even(end*f_t));        % output for train-set
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
-
-% initial guess (from paper), still need to guess damping
-b1 = 0.0015; 
-b2 = 0.0005;
-theta_init =  [-38.26;-151.88;-2548.8*b1;-2519.2*b1;-36.21;2519.2*b2;-10001*b2;107.05;-105.8;-7241;862];
+rng(1,"twister");
+theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 
 % Set 1
 [A0, B0, C0, D0, x00] = theta2matrices(theta_init);
@@ -49,30 +46,152 @@ theta_init =  [-38.26;-151.88;-2548.8*b1;-2519.2*b1;-36.21;2519.2*b2;-10001*b2;1
 %K = zeros(4,1); % no kalman observer for now: add later
 %T_s = 0.01; % sampling time
 init_sys = idss(A0, B0, C0, D0); %x0 is 0
+%init_sys.Ts = 0;
 %init_sys.x0 = x00;
-init_sys.Ts = 0;
-init_sys.Structure.A.Free = [[0,0,0,0,0];
-                             [0,0,0,0,0];
-                             [0,1,1,1,1];
-                             [0,1,1,1,1];
-                             [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
-init_sys.Structure.B.Free = [0;0;0;0;1];
-init_sys.Structure.C.Free = zeros(2,5);
-init_sys.Structure.D.Free = 0;
+init_sys.Ts = dt;
+
 
 training_data = [ymeas,u];
 opt = ssestOptions('Display','on','SearchMethod','auto');
 opt.SearchOptions.MaxIterations = 2000;
-opt.SearchOptions.Tolerance = 0.01;
+opt.SearchOptions.Tolerance = 0.000001;
 %opt.InitialState = 'estimate';
-sys = pem(training_data, init_sys,opt);
+opt.InitializeMethod = 'n4sid';
+opt.N4Weight = 'MOESP';
+sys_init2 = n4sid(training_data, init_sys,opt);
+
+sys = pem(training_data, sys_init2,opt);
 
 disp('Results theta 1, set 1')
 Abar = sys.A
 Bbar = sys.B
-C = sys.C
+Cbar = sys.C
 D = sys.D
 x0 = sys.x0
+
+%% Validation
+
+load('../Data/Sweep1 alpha.mat');   % loading alpha's
+load('../Data/Sweep1 theta.mat');   % loading theta's
+load('../Data/Sweep1 input.mat');   % loading inputs
+
+data_end = 15000; %for debugging
+data_begin = 1;
+ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+u = uin(data_begin:data_end).';            
+dt = 0.01;
+t = dt*(1:1:size(u,1)).';
+
+validation_data = [ymeas,u];
+compare(validation_data,sys)
+
+%% (modal) Transormation
+sys_m = canon(sys, 'modal)')
+
+step(sys)
+hold on
+step(sys_m)
+hold off
+legend()
+
+%% LQR design
+q1 = 1000;
+q2 = 1;
+q3 = 1;
+Q = diag([q1, q1, q2, q2, q3]);
+R = [1000];
+[P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
+
+lqsys = sys_m % printing original matrices
+lqsys.A = lqsys.A - lqsys.B*K;
+DC_gain = dcgain(lqsys);
+G = 1/DC_gain(1);
+lqsys.B = G*lqsys.B;
+%pzplot(lqsys)
+impulse(lqsys)
+grid on
+%[yout,tout]
+
+%% Transform system to CT for parameters
+
+sys_c = d2c(sys,'zoh');
+impulse(sys_c)
+hold on
+impulse(sys)
+hold off
+legend()
+
+
+%%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
+
+%% Find a transformation matrix T to go from blackbox to structured parameter matrices
+O = obsv(sys_c.A, sys_c.C);
+Ostar = O(1:4,1:5);
+Ostar_t = [[1,0,0,0,0];
+          [0,1,0,0,0];
+          [0,0,1,0,0];
+          [0,0,0,1,0]];
+
+H = kron(eye(5), Ostar_t);
+f = Ostar(:);
+
+Aeq = zeros(4, 25);
+for i = 1:4
+    Aeq(i, (i-1)*5 + (1:5)) = sys_c.B';  % row i of T times B
+end
+
+beq = zeros(4,1);
+
+options = optimoptions('lsqlin', 'Display', 'iter', ...
+    'OptimalityTolerance', 1e-12, 'ConstraintTolerance', 1e-15);
+Tentries = lsqlin(H, f, [], [], Aeq, beq);
+T = reshape(Tentries,5,5);
+
+%% Give structured parameter matrices
+A = T*Abar/T
+B = T*Bbar
+C = Cbar/T
+
+sys2_c = ss(A,B,C,D)
+impulse(sys2_c)
+hold on
+impulse(sys)
+hold off
+legend()
+
+% Note: this gives state matrices for the sampled system
+
+
+%% Estimating CT structured parameters
+
+% B(1:4) = zeros(4,1);
+% A(:,1) = zeros(5,1);
+% A(5,2) = 0;
+% A(5,4) = 0;
+% 
+% init_sys2 = idss(A, B, C, D) 
+% init_sys2.Ts = 0;
+% init_sys2.Structure.A.Free = [[0,0,0,0,0];
+%                              [0,0,0,0,0];
+%                              [0,1,1,1,1];
+%                              [0,1,1,1,1];
+%                              [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
+% init_sys2.Structure.B.Free = [0;0;0;0;1];
+% init_sys2.Structure.C.Free = zeros(2,5);
+% init_sys2.Structure.D.Free = 0;
+% 
+% opt2 = ssestOptions('Display','on','SearchMethod','auto');
+% opt2.SearchOptions.MaxIterations = 2000;
+% %opt2.InitialState = 'estimate';
+% sys2 = pem(training_data, init_sys2,opt2);
+% 
+% 
+% impulse(sys)
+% hold on
+% impulse(sys2)
+% hold off
+
+%% Validation
 
 % ypred = simsystem(Abar, Bbar, C, D, x0, uv);
 % ypred = ypred(:);

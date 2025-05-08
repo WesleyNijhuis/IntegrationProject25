@@ -5,7 +5,7 @@ load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
 load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
 load('../Data/Sweep0.001to7 input.mat');   % loading inputs
 
-data_end = 10000; %for debugging
+data_end = 8000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 u = uin(data_begin:data_end).';            
@@ -55,7 +55,7 @@ init_sys.Structure.A.Free = [[0,0,0,0,0];
                              [0,0,0,0,0];
                              [0,1,1,1,1];
                              [0,1,1,1,1];
-                             [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
+                             [1,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
 init_sys.Structure.B.Free = [0;0;0;0;1];
 init_sys.Structure.C.Free = zeros(2,5);
 init_sys.Structure.D.Free = 0;
