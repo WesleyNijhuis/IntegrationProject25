@@ -5,7 +5,7 @@ load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
 load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
 load('../Data/Sweep0.001to7 input.mat');   % loading inputs
 
-data_end = 8000; %for debugging
+data_end = 10000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 u = uin(data_begin:data_end).';            
@@ -37,7 +37,7 @@ plot(ymeas(:,2))
 % initial guess (from paper), still need to guess damping
 b1 = 0.0015; 
 b2 = 0.0005;
-theta_init =  [-38.26;-151.88;-2548.8*b1;2519.2*b1;-36.21;-2519.2*b2;-10001*b2;107.05;105.8;-7241;862];
+theta_init =  [-38.26;-151.88;-2548.8*b1;-2519.2*b1;-36.21;-2519.2*b2;-10001*b2;107.05;105.8;-7241;862];
 
 % Set 1
 [A0, B0, C0, D0, x00] = theta2matrices(theta_init);
@@ -62,7 +62,7 @@ init_sys.Structure.D.Free = 0;
 
 training_data = [ymeas,u];
 opt = ssestOptions('Display','on','SearchMethod','lm');
-opt.SearchOptions.MaxIterations = 100000;
+opt.SearchOptions.MaxIterations = 500;
 opt.SearchOptions.Tolerance = 0.01;
 %opt.InitialState = 'estimate';
 sys = pem(training_data, init_sys,opt);
@@ -107,7 +107,7 @@ Abar=[[0, 0, 1, 0, 0];
     [0, 0, 0, 1, 0]; 
     [0, theta(1), theta(3), theta(6), theta(8)]; 
     [0, theta(2), theta(4), theta(7), theta(9)]; 
-    [0, 0, theta(5), 0, theta(10)]]; 
+    [-10, 0, theta(5), 0, theta(10)]]; 
 
 Bbar=[0 ; 0; 0; 0; theta(11)]; 
 
