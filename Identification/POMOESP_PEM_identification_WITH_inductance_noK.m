@@ -8,7 +8,7 @@ load('../Data/Sweep2 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 4000; %for debugging
+data_end = 12000; %for debugging
 data_begin = 2000;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
@@ -16,8 +16,8 @@ dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
 % Removing deadzone induced offset
-dz_right = 0.0031;
-dz_left = -0.0028;
+dz_right = 0.0028;
+dz_left = -0.0024;
 
 for i=1:size(uin,1)
     if uin(i,1) < dz_right
@@ -66,11 +66,9 @@ legend('alpha','theta')
 %% Run Algorithm
 theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 
-% Set 1
-[A0, B0, C0, D0, x00] = theta2matrices(theta_init);
 
 % Testing different sizes
-n=5;
+n=6;
 A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
@@ -95,7 +93,7 @@ opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'estimate';
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
-opt.EnforceStability = true;
+%opt.EnforceStability = true;
 sys_init2 = n4sid(training_data, init_sys,opt);
 
 sys = pem(training_data, sys_init2,opt);
@@ -105,27 +103,32 @@ Abar = sys.A
 Bbar = sys.B
 Cbar = sys.C
 D = sys.D
-x0 = sys.x0
+sys.x0 = zeros(n,1);
 
-impulse(sys)
+Config = RespConfig(Amplitude=0.01,Delay=2);
+figure
+impulse(sys, Config)
 eig(sys.A)
 
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep1 alpha.mat');   % loading alpha's
-load('../Data/Sweep1 theta.mat');   % loading theta's
-load('../Data/Sweep1 input.mat');   % loading inputs
+load('../Data/Sweep2 alpha.mat');   % loading alpha's
+load('../Data/Sweep2 theta.mat');   % loading theta's
+load('../Data/Sweep2 input.mat');   % loading inputs
 
-data_end = 8000; %for debugging
+alpha = alpha(:,2);
+theta = theta(:,2);
+
+data_end = 3000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-uin = uin(data_begin:data_end).';            
+uin = u(data_begin:data_end,2);              
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
 % Removing deadzone induced offset
-dz_right = 0.00;
-dz_left = -0.00;
+dz_right = 0.0028;
+dz_left = -0.0024;
 
 for i=1:size(uin,1)
     if uin(i,1) < dz_right
@@ -152,130 +155,130 @@ validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys)
 
-%% (modal) Transformation
-sys_m = canon(sys, 'modal)')
-
-step(sys)
-hold on
-step(sys_m)
-hold off
-legend()
-
-%% LQR design
-q1 = 25;
-q2 = 1;
-q3 = 3;
-Q = diag([q1, q1, q2, q2, q3]);
-R = [1];
-[P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
-
-lqsys = sys_m % printing original matrices
-lqsys.A = lqsys.A - lqsys.B*K;
-DC_gain = dcgain(lqsys);
-G = 1/DC_gain(1);
-lqsys.B = G*lqsys.B;
-%pzplot(lqsys)
-step(lqsys)
-grid on
-%[yout,tout]
-
-%% Transform system to CT for parameters
-
-sys_c = d2c(sys,'zoh');
-impulse(sys_c)
-hold on
-impulse(sys)
-hold off
-legend()
-
-
-%%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
-
-%% Find a transformation matrix T to go from blackbox to structured parameter matrices
-O = obsv(sys_c.A, sys_c.C);
-Ostar = O(1:4,1:5);
-Ostar_t = [[1,0,0,0,0];
-          [0,1,0,0,0];
-          [0,0,1,0,0];
-          [0,0,0,1,0]];
-
-H = kron(eye(5), Ostar_t);
-f = Ostar(:);
-
-Aeq = zeros(4, 25);
-for i = 1:4
-    Aeq(i, (i-1)*5 + (1:5)) = sys_c.B';  % row i of T times B
-end
-
-beq = zeros(4,1);
-
-options = optimoptions('lsqlin', 'Display', 'iter', ...
-    'OptimalityTolerance', 1e-12, 'ConstraintTolerance', 1e-15);
-Tentries = lsqlin(H, f, [], [], Aeq, beq);
-T = reshape(Tentries,5,5);
-
-%% Give structured parameter matrices
-A = T*Abar/T
-B = T*Bbar
-C = Cbar/T
-
-sys2_c = ss(A,B,C,D)
-impulse(sys2_c)
-hold on
-impulse(sys)
-hold off
-legend()
-
-% Note: this gives state matrices for the sampled system
-
-
-%% Estimating CT structured parameters
-
-% B(1:4) = zeros(4,1);
-% A(:,1) = zeros(5,1);
-% A(5,2) = 0;
-% A(5,4) = 0;
+% %% (modal) Transformation
+% sys_m = canon(sys, 'modal)')
 % 
-% init_sys2 = idss(A, B, C, D) 
-% init_sys2.Ts = 0;
-% init_sys2.Structure.A.Free = [[0,0,0,0,0];
-%                              [0,0,0,0,0];
-%                              [0,1,1,1,1];
-%                              [0,1,1,1,1];
-%                              [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
-% init_sys2.Structure.B.Free = [0;0;0;0;1];
-% init_sys2.Structure.C.Free = zeros(2,5);
-% init_sys2.Structure.D.Free = 0;
-% 
-% opt2 = ssestOptions('Display','on','SearchMethod','auto');
-% opt2.SearchOptions.MaxIterations = 2000;
-% %opt2.InitialState = 'estimate';
-% sys2 = pem(training_data, init_sys2,opt2);
-% 
-% 
-% impulse(sys)
+% step(sys)
 % hold on
-% impulse(sys2)
+% step(sys_m)
 % hold off
-
-%% Validation
-
-% ypred = simsystem(Abar, Bbar, C, D, x0, uv);
-% ypred = ypred(:);
+% legend()
 % 
-% RMSE = rmse(ypred, yv);
-% VAF = 1 - var(yv - ypred)/var(yv);
+% %% LQR design
+% q1 = 25;
+% q2 = 1;
+% q3 = 3;
+% Q = diag([q1, q1, q2, q2, q3]);
+% R = [1];
+% [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
 % 
-% figure('position', [0, 0, 800, 400])  % create new figure with specified size  
+% lqsys = sys_m % printing original matrices
+% lqsys.A = lqsys.A - lqsys.B*K;
+% DC_gain = dcgain(lqsys);
+% G = 1/DC_gain(1);
+% lqsys.B = G*lqsys.B;
+% %pzplot(lqsys)
+% step(lqsys)
+% grid on
+% %[yout,tout]
 % 
-% plot(ypred)
-% title(['Resuls for theta1, training set 1 with RMSE of ', num2str(RMSE), ' and VAF of ', num2str(VAF)])
+% %% Transform system to CT for parameters
 % 
+% sys_c = d2c(sys,'zoh');
+% impulse(sys_c)
 % hold on
-% plot(yv)
-% legend('ypred', 'yv')
-% hold off 
-%% Parameters to state matrices
+% impulse(sys)
+% hold off
+% legend()
+% 
+% 
+% %%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
+% 
+% %% Find a transformation matrix T to go from blackbox to structured parameter matrices
+% O = obsv(sys_c.A, sys_c.C);
+% Ostar = O(1:4,1:5);
+% Ostar_t = [[1,0,0,0,0];
+%           [0,1,0,0,0];
+%           [0,0,1,0,0];
+%           [0,0,0,1,0]];
+% 
+% H = kron(eye(5), Ostar_t);
+% f = Ostar(:);
+% 
+% Aeq = zeros(4, 25);
+% for i = 1:4
+%     Aeq(i, (i-1)*5 + (1:5)) = sys_c.B';  % row i of T times B
+% end
+% 
+% beq = zeros(4,1);
+% 
+% options = optimoptions('lsqlin', 'Display', 'iter', ...
+%     'OptimalityTolerance', 1e-12, 'ConstraintTolerance', 1e-15);
+% Tentries = lsqlin(H, f, [], [], Aeq, beq);
+% T = reshape(Tentries,5,5);
+% 
+% %% Give structured parameter matrices
+% A = T*Abar/T
+% B = T*Bbar
+% C = Cbar/T
+% 
+% sys2_c = ss(A,B,C,D)
+% impulse(sys2_c)
+% hold on
+% impulse(sys)
+% hold off
+% legend()
+% 
+% % Note: this gives state matrices for the sampled system
+% 
+% 
+% %% Estimating CT structured parameters
+% 
+% % B(1:4) = zeros(4,1);
+% % A(:,1) = zeros(5,1);
+% % A(5,2) = 0;
+% % A(5,4) = 0;
+% % 
+% % init_sys2 = idss(A, B, C, D) 
+% % init_sys2.Ts = 0;
+% % init_sys2.Structure.A.Free = [[0,0,0,0,0];
+% %                              [0,0,0,0,0];
+% %                              [0,1,1,1,1];
+% %                              [0,1,1,1,1];
+% %                              [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
+% % init_sys2.Structure.B.Free = [0;0;0;0;1];
+% % init_sys2.Structure.C.Free = zeros(2,5);
+% % init_sys2.Structure.D.Free = 0;
+% % 
+% % opt2 = ssestOptions('Display','on','SearchMethod','auto');
+% % opt2.SearchOptions.MaxIterations = 2000;
+% % %opt2.InitialState = 'estimate';
+% % sys2 = pem(training_data, init_sys2,opt2);
+% % 
+% % 
+% % impulse(sys)
+% % hold on
+% % impulse(sys2)
+% % hold off
+% 
+% %% Validation
+% 
+% % ypred = simsystem(Abar, Bbar, C, D, x0, uv);
+% % ypred = ypred(:);
+% % 
+% % RMSE = rmse(ypred, yv);
+% % VAF = 1 - var(yv - ypred)/var(yv);
+% % 
+% % figure('position', [0, 0, 800, 400])  % create new figure with specified size  
+% % 
+% % plot(ypred)
+% % title(['Resuls for theta1, training set 1 with RMSE of ', num2str(RMSE), ' and VAF of ', num2str(VAF)])
+% % 
+% % hold on
+% % plot(yv)
+% % legend('ypred', 'yv')
+% % hold off 
+% %% Parameters to state matrices
 function [Abar,Bbar,C,D,x0] = theta2matrices(theta)
 %%
 % Function INPUT

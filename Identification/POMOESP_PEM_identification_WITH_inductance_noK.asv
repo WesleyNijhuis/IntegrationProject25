@@ -8,7 +8,7 @@ load('../Data/Sweep2 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 8000; %for debugging
+data_end = 4000; %for debugging
 data_begin = 2000;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
@@ -16,7 +16,7 @@ dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
 % Removing deadzone induced offset
-dz_right = 0.0024;
+dz_right = 0.0031;
 dz_left = -0.0028;
 
 for i=1:size(uin,1)
@@ -33,11 +33,11 @@ plot(uin)
 title('uin')
 figure
 plot(ymeas(:,1))
-title('alpha')
-figure
+title('outputs')
+hold on
 plot(ymeas(:,2))
-title('theta')
-
+hold off
+legend('alpha','theta')
 %% Singular values
  s = 20;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
@@ -95,7 +95,7 @@ opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'estimate';
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
-opt.EnforceStability = true;
+%opt.EnforceStability = true;
 sys_init2 = n4sid(training_data, init_sys,opt);
 
 sys = pem(training_data, sys_init2,opt);
@@ -119,11 +119,37 @@ load('../Data/Sweep1 input.mat');   % loading inputs
 data_end = 8000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-uin = u(data_begin:data_end).';            
+uin = uin(data_begin:data_end).';            
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
+% Removing deadzone induced offset
+dz_right = 0.0028;
+dz_left = -0.0024;
+
+for i=1:size(uin,1)
+    if uin(i,1) < dz_right
+        if uin(i,1) > 0
+            uin(i,1) = 0;
+        elseif uin(i,1) > dz_left
+            uin(i,1) = 0;
+        end
+    end
+end
+
+figure
+plot(uin)
+title('uin')
+figure
+plot(ymeas(:,1))
+title('outputs')
+hold on
+plot(ymeas(:,2))
+hold off
+legend('alpha','theta')
+
 validation_data = [ymeas,uin];
+figure
 compare(validation_data,sys)
 
 %% (modal) Transformation
