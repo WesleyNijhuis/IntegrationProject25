@@ -8,25 +8,41 @@ load('../Data/Sweep2 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 12000; %for debugging
-data_begin = 1;
+data_end = 4000; %for debugging
+data_begin = 2000;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
+% Removing deadzone induced offset
+dz_right = 0.0031;
+dz_left = -0.0028;
+
+for i=1:size(uin,1)
+    if uin(i,1) < dz_right
+        if uin(i,1) > 0
+            uin(i,1) = 0;
+        elseif uin(i,1) > dz_left
+            uin(i,1) = 0;
+        end
+    end
+end
+
 plot(uin)
+title('uin')
 figure
 plot(ymeas(:,1))
-figure
+title('outputs')
+hold on
 plot(ymeas(:,2))
-
+hold off
+legend('alpha','theta')
 %% Singular values
  s = 20;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
  [U,S,V] = svd(y_hank, 'econ');
  sing_vals = diag(S);
- n=4;
  figure
  plot(sing_vals,'o')
  title('Singular values of the output signal')
@@ -54,7 +70,7 @@ theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 [A0, B0, C0, D0, x00] = theta2matrices(theta_init);
 
 % Testing different sizes
-n=4;
+n=5;
 A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
@@ -67,18 +83,19 @@ D0 = zeros(2,1);
 %K = zeros(4,1); % no kalman observer for now: add later
 %T_s = 0.01; % sampling time
 init_sys = idss(A0, B0, C0, D0); %x0 is 0
-%init_sys.Ts = 0;
+init_sys.Ts = 0.01;
 %init_sys.x0 = x00;
 init_sys.Ts = dt;
 
 
 training_data = [ymeas,uin];
 opt = ssestOptions('Display','on','SearchMethod','auto');
-opt.SearchOptions.MaxIterations = 2000;
-opt.SearchOptions.Tolerance = 1e-8;
-opt.InitialState = 'zero';
+opt.SearchOptions.MaxIterations = 4000;
+opt.SearchOptions.Tolerance = 1e-12;
+opt.InitialState = 'estimate';
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
+opt.EnforceStability = true;
 sys_init2 = n4sid(training_data, init_sys,opt);
 
 sys = pem(training_data, sys_init2,opt);
@@ -90,20 +107,49 @@ Cbar = sys.C
 D = sys.D
 x0 = sys.x0
 
+impulse(sys)
+eig(sys.A)
+
 %% Validation (for every test do two runs)
 
 load('../Data/Sweep1 alpha.mat');   % loading alpha's
 load('../Data/Sweep1 theta.mat');   % loading theta's
 load('../Data/Sweep1 input.mat');   % loading inputs
 
-data_end = 15000; %for debugging
+data_end = 8000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-uin = u(data_begin:data_end).';            
+uin = uin(data_begin:data_end).';            
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
+% Removing deadzone induced offset
+dz_right = 0.00;
+dz_left = -0.00;
+
+for i=1:size(uin,1)
+    if uin(i,1) < dz_right
+        if uin(i,1) > 0
+            uin(i,1) = 0;
+        elseif uin(i,1) > dz_left
+            uin(i,1) = 0;
+        end
+    end
+end
+
+figure
+plot(uin)
+title('uin')
+figure
+plot(ymeas(:,1))
+title('outputs')
+hold on
+plot(ymeas(:,2))
+hold off
+legend('alpha','theta')
+
 validation_data = [ymeas,uin];
+figure
 compare(validation_data,sys)
 
 %% (modal) Transformation
