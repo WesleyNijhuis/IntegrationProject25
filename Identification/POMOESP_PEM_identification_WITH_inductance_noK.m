@@ -1,33 +1,33 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep2 alpha.mat');   % loading alpha's
-load('../Data/Sweep2 theta.mat');   % loading theta's
-load('../Data/Sweep2 input.mat');   % loading inputs
+load('../Data/Sweep 3 alpha.mat');   % loading alpha's
+load('../Data/Sweep 3 theta.mat');   % loading theta's
+load('../Data/Sweep 3 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 12000; %for debugging
-data_begin = 2000;
+data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
-% Removing deadzone induced offset
-dz_right = 0.0028;
-dz_left = -0.0024;
-
-for i=1:size(uin,1)
-    if uin(i,1) < dz_right
-        if uin(i,1) > 0
-            uin(i,1) = 0;
-        elseif uin(i,1) > dz_left
-            uin(i,1) = 0;
-        end
-    end
-end
+% % Removing deadzone induced offset
+% dz_right = 0.0028;
+% dz_left = -0.0024;
+% 
+% for i=1:size(uin,1)
+%     if uin(i,1) < dz_right
+%         if uin(i,1) > 0
+%             uin(i,1) = 0;
+%         elseif uin(i,1) > dz_left
+%             uin(i,1) = 0;
+%         end
+%     end
+% end
 
 plot(uin)
 title('uin')
@@ -68,7 +68,7 @@ theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
 
 
 % Testing different sizes
-n=6;
+n=5;
 A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
@@ -112,33 +112,33 @@ eig(sys.A)
 
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep2 alpha.mat');   % loading alpha's
-load('../Data/Sweep2 theta.mat');   % loading theta's
-load('../Data/Sweep2 input.mat');   % loading inputs
+load('../Data/Sweep 3v alpha.mat');   % loading alpha's
+load('../Data/Sweep 3v theta.mat');   % loading theta's
+load('../Data/Sweep 3v input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 3000; %for debugging
+data_end = 10000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);              
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
-% Removing deadzone induced offset
-dz_right = 0.0028;
-dz_left = -0.0024;
-
-for i=1:size(uin,1)
-    if uin(i,1) < dz_right
-        if uin(i,1) > 0
-            uin(i,1) = 0;
-        elseif uin(i,1) > dz_left
-            uin(i,1) = 0;
-        end
-    end
-end
+% % Removing deadzone induced offset
+% dz_right = 0.0028;
+% dz_left = -0.0024;
+% 
+% for i=1:size(uin,1)
+%     if uin(i,1) < dz_right
+%         if uin(i,1) > 0
+%             uin(i,1) = 0;
+%         elseif uin(i,1) > dz_left
+%             uin(i,1) = 0;
+%         end
+%     end
+% end
 
 figure
 plot(uin)
@@ -155,43 +155,43 @@ validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys)
 
-% %% (modal) Transformation
-% sys_m = canon(sys, 'modal)')
-% 
-% step(sys)
-% hold on
-% step(sys_m)
-% hold off
-% legend()
-% 
-% %% LQR design
-% q1 = 25;
-% q2 = 1;
-% q3 = 3;
-% Q = diag([q1, q1, q2, q2, q3]);
-% R = [1];
-% [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
-% 
-% lqsys = sys_m % printing original matrices
-% lqsys.A = lqsys.A - lqsys.B*K;
-% DC_gain = dcgain(lqsys);
-% G = 1/DC_gain(1);
-% lqsys.B = G*lqsys.B;
-% %pzplot(lqsys)
-% step(lqsys)
-% grid on
-% %[yout,tout]
-% 
-% %% Transform system to CT for parameters
-% 
-% sys_c = d2c(sys,'zoh');
-% impulse(sys_c)
-% hold on
-% impulse(sys)
-% hold off
-% legend()
-% 
-% 
+%% (modal) Transformation
+sys_m = canon(sys, 'modal)')
+
+step(sys, Config)
+hold on
+step(sys_m, Config)
+hold off
+legend()
+
+%% LQR design
+q1 = 10;
+q2 = 10;
+q3 = 10;
+Q = diag([q1, q1, q2, q2, q3]);
+R = [10];
+[P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
+
+lqsys = sys_m % printing original matrices
+lqsys.A = lqsys.A - lqsys.B*K;
+DC_gain = dcgain(lqsys);
+G = 1/DC_gain(1);
+lqsys.B = G*lqsys.B;
+%pzplot(lqsys)
+step(lqsys)
+grid on
+%[yout,tout]
+
+%% Transform system to CT for parameters
+
+sys_c = d2c(sys,'zoh');
+impulse(sys_c)
+hold on
+impulse(sys)
+hold off
+legend()
+
+
 % %%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
 % 
 % %% Find a transformation matrix T to go from blackbox to structured parameter matrices
