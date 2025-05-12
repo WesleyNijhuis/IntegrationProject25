@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep0.001to7 alpha.mat');   % loading alpha's
-load('../Data/Sweep0.001to7 theta.mat');   % loading theta's
-load('../Data/Sweep0.001to7 input.mat');   % loading inputs
+load('../Data/Sweep 3 alpha.mat');   % loading alpha's
+load('../Data/Sweep 3 theta.mat');   % loading theta's
+load('../Data/Sweep 3 input.mat');   % loading inputs
 
 data_end = 10000; %for debugging
 data_begin = 1;

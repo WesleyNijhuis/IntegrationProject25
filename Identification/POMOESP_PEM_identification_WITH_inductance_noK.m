@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep 3 alpha.mat');   % loading alpha's
-load('../Data/Sweep 3 theta.mat');   % loading theta's
-load('../Data/Sweep 3 input.mat');   % loading inputs
+load('../Data/Sweep 4 alpha.mat');   % loading alpha's
+load('../Data/Sweep 4 theta.mat');   % loading theta's
+load('../Data/Sweep 4 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -90,10 +90,10 @@ training_data = [ymeas,uin];
 opt = ssestOptions('Display','on','SearchMethod','auto');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
-opt.InitialState = 'estimate';
+opt.InitialState = 'zero';
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
-%opt.EnforceStability = true;
+opt.EnforceStability = false;
 sys_init2 = n4sid(training_data, init_sys,opt);
 
 sys = pem(training_data, sys_init2,opt);
@@ -164,12 +164,28 @@ step(sys_m, Config)
 hold off
 legend()
 
+%% pole placement design
+poles = [0.7,0.71,0.72,0.73,0.74]
+K = place(sys_m.A, sys_m.B, poles)
+
+sfsys = sys_m % printing original matrices
+sfsys.A = sfsys.A - sfsys.B*K;
+DC_gain = dcgain(sfsys);
+G = 1/DC_gain(1);
+sfsys.B = G*sfsys.B;
+%pzplot(lqsys)
+step(sfsys)
+grid on
+stepinfo(sfsys).TransientTime
+%[yout,tout]
+
+
 %% LQR design
-q1 = 10;
-q2 = 10;
-q3 = 10;
+q1 = 200;
+q2 = 40;
+q3 = 70;
 Q = diag([q1, q1, q2, q2, q3]);
-R = [10];
+R = [0.001];
 [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
 
 lqsys = sys_m % printing original matrices
@@ -180,6 +196,7 @@ lqsys.B = G*lqsys.B;
 %pzplot(lqsys)
 step(lqsys)
 grid on
+stepinfo(lqsys).TransientTime
 %[yout,tout]
 
 %% Transform system to CT for parameters
