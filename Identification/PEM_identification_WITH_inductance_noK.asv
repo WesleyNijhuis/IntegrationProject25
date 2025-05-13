@@ -36,7 +36,7 @@ J0_hat = J1_hat + m2 * L1^2;
 
 A41 = 0;
 A42 = (g * m2 * l2 * J0_hat) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-A43 = (-b1 * m2 * l2 * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
+A43 = -(-b1 * m2 * l2 * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2); %WHY IS THIS MINUS NEEDED (DIRECTION)
 A44 = (-b2 * J0_hat) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 
 B31 = J2_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
@@ -47,7 +47,7 @@ B42 = J0_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 A31 = 0;
 A32 = (g * (m2^2) * (l2^2) * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 A33 = (-b1 * J2_hat) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-A34 = (-b2 * m2 * l2 * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2); 
+A34 = -(-b2 * m2 * l2 * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2); %WHY IS THIS MINUS NEEDED (DIRECTION)
 
 A34 = -A34;
 A42 = -A42;

@@ -87,7 +87,7 @@ init_sys.Ts = dt;
 
 
 training_data = [ymeas,uin];
-opt = ssestOptions('Display','on','SearchMethod','auto');
+opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
