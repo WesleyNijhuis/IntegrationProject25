@@ -1,0 +1,78 @@
+ans =
+
+    0.3900
+
+
+poles =
+
+    0.8000    0.8100    0.8200    0.8300    0.8400
+
+
+K =
+
+   1.0e+04 *
+
+   -2.0633   -0.0013   -0.0013    0.0001    0.0002
+
+
+sfsys =
+  Discrete-time identified state-space model:
+    x(t+Ts) = A x(t) + B u(t) + K e(t)
+       y(t) = C x(t) + D u(t) + e(t)
+ 
+  A = 
+            x1       x2       x3       x4       x5
+   x1   0.3508        0        0        0        0
+   x2        0   0.9793   0.1535        0        0
+   x3        0  -0.1535   0.9793        0        0
+   x4        0        0        0   0.9697        0
+   x5        0        0        0        0   0.9815
+ 
+  B = 
+             u1
+   x1  6.73e-06
+   x2   0.00337
+   x3  -0.01163
+   x4   -0.2944
+   x5    0.3612
+ 
+  C = 
+              x1         x2         x3         x4         x5
+   y1    -0.6551    -0.1466    -0.0609     0.0792    0.06277
+   y2     0.1158     0.3124    0.08343  -0.002349   -0.00109
+ 
+  D = 
+       u1
+   y1   0
+   y2   0
+ 
+  K = 
+       y1  y2
+   x1   0   0
+   x2   0   0
+   x3   0   0
+   x4   0   0
+   x5   0   0
+ 
+Sample time: 0.01 seconds
+
+Parameterization:
+   STRUCTURED form (some fixed coefficients in  A, B, C).
+   Feedthrough: none
+   Disturbance component: none
+   Number of free coefficients: 22
+   Use "idssdata", "getpvec", "getcov" for parameters and their uncertainties.
+
+Status:                         
+Model modified after estimation.
+ 
+Model Properties
+
+ans =
+
+    0.6100
+
+
+ans =
+
+    0.6400
