@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep 3 alpha.mat');   % loading alpha's
-load('../Data/Sweep 3 theta.mat');   % loading theta's
-load('../Data/Sweep 3 input.mat');   % loading inputs
+load('../Data/Sweep 4 alpha.mat');   % loading alpha's
+load('../Data/Sweep 4 theta.mat');   % loading theta's
+load('../Data/Sweep 4 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -165,7 +165,7 @@ hold off
 legend()
 
 %% pole placement design
-poles = [0.7,0.71,0.72,0.73,0.74]
+poles = [0.8,0.81,0.82,0.83,0.84]
 K = place(sys_m.A, sys_m.B, poles)
 
 sfsys = sys_m % printing original matrices

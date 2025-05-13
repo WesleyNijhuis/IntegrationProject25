@@ -165,7 +165,7 @@ hold off
 legend()
 
 %% pole placement design
-poles = [0.7,0.71,0.72,0.73,0.74]
+poles = [0.8,0.81,0.82,0.83,0.84]
 K = place(sys_m.A, sys_m.B, poles)
 
 sfsys = sys_m % printing original matrices
