@@ -8,7 +8,7 @@ load('../Data/Sweep 5 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 12000; %for debugging
+data_end = 6000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
@@ -26,7 +26,7 @@ hold off
 legend('alpha','theta')
 
 %% Initial guess can be entered in the function theta2matrices!
-function [Ac, Bc, Cc, Dc] = initialguess(m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2)
+function [Ac, Bc, Cc, Dc] = initialguess(m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT)
 g = 9.81;
 
 J1_hat = J1 + m1 * l1^2;
@@ -44,24 +44,32 @@ B41 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 B32 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 B42 = J0_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 
-A31 = 0;
+A31 = -KT; %Torsion induced by cable
 A32 = (g * (m2^2) * (l2^2) * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 A33 = (-b1 * J2_hat) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 A34 = (-b2 * m2 * l2 * L1) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2); 
 
+%switching signs for downwards position
 A34 = -A34;
 A42 = -A42;
 A43 = -A43;
 B32 = -B32;
 B41 = -B41;
 
+% Adding extended state parameters
 A35 = B31*Km;
 A45 = B41*Km;
 
 A53 = -Km/Lm;
 A55 = -Rm/Lm;
 
-B5 = 1/Lm;
+B5 = 5*1/Lm; % Voltage sent is multiplied by 5 in Qube block!
+
+% Theta is defined positive in CW direction?
+A32 = -A32;
+A34 = -A34;
+A43 = -A43;
+A45 = -A45;
 
 Ac = [[0,0,1,0,0];
      [0,0,0,1,0];
@@ -86,7 +94,10 @@ end
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
 
-% initial guess (from paper), still need to guess damping
+% load training data
+training_data = [ymeas,uin];
+
+% initial guess (from data sheet and paper), still need to guess damping
 b1 = 0.0015; 
 b2 = 0.0005;
 
@@ -96,19 +107,19 @@ l1 = 0.085/2; %(m)
 l2 = 0.129/2; %Lp/2 (m) 
 L1 = 0.085; %(m)
 L2 = 0.129; %(m)
-J1 = 0.6*1e-6 + 4*1e-6; %Jr+Jm (kg/m2)
-J2 = m2*(L2^2)/3; %(kg/m2)
+J1 = 0.6*1e-6 + 4*1e-6 + m1*(L1^2)/12; %Jr+Jm (kg/m2) %Jp and Ja SHOULD BE AROUND THE CENTER!
+J2 = m2*(L2^2)/12; %(kg/m2)
 Lm = 1.16 * 1e-3; %mH
 Km = 0.042; %0.042(Nm/A)
 Rm = 8.4; %(ohm)
+KT = 1;
 
-[A0,B0,C0,D0] = initialguess(m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2);
+[A0,B0,C0,D0] = initialguess(m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT);
 
 % Set 1
 theta_init =  [-38.26;-151.88;-2548.8*b1;-2519.2*b1;-36.21;-2519.2*b2;-10001*b2;107.05;105.8;-7241;862];
-theta_init = [-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1];
+theta_init = rand(11,1)-5*rand(11,1);
 [A02, B02, C02, D02, x00] = theta2matrices(theta_init);
-
 
 % BIG TODO: CHANGE THE SS TO DISCRETIZED, DIFFERENT STRUCTURE?
 
@@ -118,20 +129,57 @@ theta_init = [-1,-1,-1,-1,-1,-1,-1,1,-1,-1,-1];
 init_sys = idss(A0, B0, C0, D0); %x0 is 0
 %init_sys.x0 = x00;
 init_sys.Ts = 0;
+
+% testing the initial guess
+ysim = lsim(init_sys,uin,t);
+
+close all
+figure('Position',[100 100 1000 400])
+sgtitle('initial guess')
+subplot(1,2,1)
+plot(ysim(:,1));
+hold on
+plot(ymeas(:,1));
+hold off
+title('alpha')
+legend('simulated','data')
+
+subplot(1,2,2)
+plot(ysim(:,2));
+hold on
+plot(ymeas(:,2));
+hold off
+title('theta')
+legend('simulated','data')
+
+
+%% PEM
+% Setting some bounds for these parameters (we expect the initial guess of
+% each parameter to be within CF*100% of initial guess (But if we're
+% actually close, this shouldnt matter)
+
+% CF = 0.5;
+% init_sys.Structure.A.Minimum = A0 - abs(A0).*CF - 1000*[0,0,0,0,0;0,0,0,0,0;1,0,0,0,0;0,0,0,0,0;0,0,0,0,0]; % relax cons for A31
+% init_sys.Structure.A.Maximum = A0 + abs(A0).*CF + 1000*[0,0,0,0,0;0,0,0,0,0;1,0,0,0,0;0,0,0,0,0;0,0,0,0,0]; % relax cons for A31
+% init_sys.Structure.B.Minimum = B0 - abs(B0).*CF;
+% init_sys.Structure.B.Maximum = B0 + abs(B0).*CF;
+
+% Setting which entries are the parameters
 init_sys.Structure.A.Free = [[0,0,0,0,0];
                              [0,0,0,0,0];
-                             [0,1,1,1,1];
+                             [1,1,1,1,1]; %A31 is a torsional factor induced by cable
                              [0,1,1,1,1];
                              [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
 init_sys.Structure.B.Free = [0;0;0;0;1];
 init_sys.Structure.C.Free = zeros(2,5);
 init_sys.Structure.D.Free = [0;0];
 
-training_data = [ymeas,uin];
+
 opt = ssestOptions('Display','on','SearchMethod','gna');
-opt.SearchOptions.MaxIterations = 4000;
+opt.SearchOptions.MaxIterations = 1000;
 opt.SearchOptions.Tolerance = 1e-8;
 opt.InitialState = 'zero';
+opt.OutputOffset = [mean(ymeas(:,1));0];
 sys = pem(training_data, init_sys,opt);
 
 disp('Results theta 1, set 1')
@@ -141,6 +189,7 @@ C = sys.C
 D = sys.D
 x0 = sys.x0
 
+compare(training_data,init_sys,sys)
 % ypred = simsystem(Abar, Bbar, C, D, x0, uv);
 % ypred = ypred(:);
 % 
@@ -208,6 +257,7 @@ function [y, x] = simsystem(A, B, C, D, x0, u)
 % Function OUTPUT
 % x state of system (matrix of size N x n)
 % y system output (matrix of size N x l)
+
 x(1,:) = x0';
 %%%%%% YOUR CODE HERE %%%%%%
 y = zeros(max(size(u,1), size(u,1)), 2);

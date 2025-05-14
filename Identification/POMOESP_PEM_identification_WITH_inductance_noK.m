@@ -91,6 +91,7 @@ opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
+%opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
 opt.EnforceStability = false;
