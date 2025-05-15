@@ -64,8 +64,6 @@ legend('alpha','theta')
 % yt = ymeas(1:round2even(end*f_t));        % output for train-set
 % yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
-theta_init =  [12.2;-13.6;-2.2;-1.4;-36.2;-1.4;-2.2;2.2;4.4;-7241;862];
-
 
 % Testing different sizes
 n=5;
@@ -86,7 +84,7 @@ init_sys.Ts = 0.01;
 init_sys.Ts = dt;
 
 
-training_data = [ymeas,uin];
+training_data = iddata(ymeas, uin, dt);
 opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
@@ -166,7 +164,7 @@ hold off
 legend()
 
 %% pole placement design
-poles = [0.8,0.81,0.82,0.83,0.84]
+poles = [0.8,0.85,0.97,0.98,0.75]
 K = place(sys_m.A, sys_m.B, poles)
 
 sfsys = sys_m % printing original matrices
@@ -178,6 +176,7 @@ sfsys.B = G*sfsys.B;
 step(sfsys)
 grid on
 stepinfo(sfsys).TransientTime
+stepinfo(sfsys).Overshoot
 %[yout,tout]
 
 
