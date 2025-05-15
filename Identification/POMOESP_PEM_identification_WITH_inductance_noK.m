@@ -152,7 +152,7 @@ R = 1;
 [~, ~, K] = dare(system.A, system.B, Q, R);
 
 [u_max, overshoot,settling_time, rise_time] = results(system,K);
-penalty = 1e6 * max(0, u_max - 4.7);
+penalty = 1e6 / (1 + exp(-100*(u_max - 4.7)));
 
 
 f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + penalty;
