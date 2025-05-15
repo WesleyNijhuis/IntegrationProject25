@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
+load('../Data/Sweep 4 alpha.mat');   % loading alpha's
+load('../Data/Sweep 4 theta.mat');   % loading theta's
+load('../Data/Sweep 4 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -44,8 +44,7 @@ legend('alpha','theta')
  [U,S,V] = svd(y_hank, 'econ');
  sing_vals = diag(S);
  figure
- semilogy(sing_vals,'o')
- grid on
+ plot(sing_vals,'o')
  title('Singular values of the output signal')
  xlabel('Value index')
  ylabel('Singular value')
@@ -112,9 +111,9 @@ eig(sys.A)
 
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep 5 alpha.mat');   % loading alpha's
-load('../Data/Sweep 5 theta.mat');   % loading theta's
-load('../Data/Sweep 5 input.mat');   % loading inputs
+load('../Data/Sweep 3v alpha.mat');   % loading alpha's
+load('../Data/Sweep 3v theta.mat');   % loading theta's
+load('../Data/Sweep 3v input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -126,11 +125,36 @@ uin = u(data_begin:data_end,2);
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
+% % Removing deadzone induced offset
+% dz_right = 0.0028;
+% dz_left = -0.0024;
+% 
+% for i=1:size(uin,1)
+%     if uin(i,1) < dz_right
+%         if uin(i,1) > 0
+%             uin(i,1) = 0;
+%         elseif uin(i,1) > dz_left
+%             uin(i,1) = 0;
+%         end
+%     end
+% end
+
+figure
+plot(uin)
+title('uin')
+figure
+plot(ymeas(:,1))
+title('outputs')
+hold on
+plot(ymeas(:,2))
+hold off
+legend('alpha','theta')
+
 validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys)
 
-%% Optimal LQR syntesis using genetic algorithm
+%% Optimal LQR syntesis
 
 function [u_max, overshoot,settling_time, rise_time] = results(system,K)
 % K is the resulting stabilizing feedbackgain from DARE
@@ -162,7 +186,7 @@ end
 
 
 % LQR optimization
-W = [0,1,1,100,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
+W = [0,1,1,10000,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
