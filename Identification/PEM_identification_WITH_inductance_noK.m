@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep 5 alpha.mat');   % loading alpha's
-load('../Data/Sweep 5 theta.mat');   % loading theta's
-load('../Data/Sweep 5 input.mat');   % loading inputs
+load('../Data/Sweep 6 alpha.mat');   % loading alpha's
+load('../Data/Sweep 6 theta.mat');   % loading theta's
+load('../Data/Sweep 6 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
