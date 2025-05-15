@@ -65,12 +65,6 @@ A55 = -Rm/Lm;
 
 B5 = 5*1/Lm; % Voltage sent is multiplied by 5 in Qube block!
 
-% Theta is defined positive in CW direction?
-A32 = -A32;
-A34 = -A34;
-A43 = -A43;
-A45 = -A45;
-
 Ac = [[0,0,1,0,0];
      [0,0,0,1,0];
      [A31,A32,A33,A34,A35];

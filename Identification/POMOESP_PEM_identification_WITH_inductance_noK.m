@@ -164,7 +164,8 @@ hold off
 legend()
 
 %% pole placement design
-poles = [0.8,0.85,0.97,0.98,0.75]
+poles = [0.4,0.45,0.9898 + 0.0037i,0.9898 - 0.0037i,0.5]
+poles = [0.41, 0.42,-0.43,-0.44,1];
 K = place(sys_m.A, sys_m.B, poles)
 
 sfsys = sys_m % printing original matrices
@@ -173,7 +174,8 @@ DC_gain = dcgain(sfsys);
 G = 1/DC_gain(1);
 sfsys.B = G*sfsys.B;
 %pzplot(lqsys)
-step(sfsys)
+Config = RespConfig(Amplitude=1,Delay=0);
+step(sfsys, Config)
 grid on
 stepinfo(sfsys).TransientTime
 stepinfo(sfsys).Overshoot
@@ -181,11 +183,11 @@ stepinfo(sfsys).Overshoot
 
 
 %% LQR design
-q1 = 200;
-q2 = 40;
-q3 = 70;
+q1 = 3e2;
+q2 = 10;
+q3 = 10;
 Q = diag([q1, q1, q2, q2, q3]);
-R = [0.001];
+R = [1];
 [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
 
 lqsys = sys_m % printing original matrices
