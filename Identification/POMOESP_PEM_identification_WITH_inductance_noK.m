@@ -138,7 +138,7 @@ function [u_max, overshoot,settling_time, rise_time] = results(system,K)
 system.A = system.A - system.B*K;
 info = stepinfo(system);
 settling_time = [info.TransientTime].';
-overshoot = [info.Overshoot].';
+overshoot = [info.Overshoot].' + [info.Undershoot].';
 rise_time = [info.RiseTime].';
 [~,~,x] = step(system);
 u_max = max(abs(K*x.'));
@@ -152,7 +152,7 @@ R = 1;
 [~, ~, K] = dare(system.A, system.B, Q, R);
 
 [u_max, overshoot,settling_time, rise_time] = results(system,K);
-penalty = 1e6 / (1 + exp(-100*(u_max - 4.7)));
+penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
 
 
 f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + penalty;
@@ -162,7 +162,7 @@ end
 
 
 % LQR optimization
-W = [0,1,1,100,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
+W = [0,1,1,10,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
@@ -190,7 +190,7 @@ legend()
 
 %% pole placement design
 poles = [0.4,0.45,0.9898 + 0.0037i,0.9898 - 0.0037i,0.5]
-poles = [0.41, 0.42,-0.43,-0.44,1];
+poles = [0.95, 0.96,0.97,0.98,0.99];
 K = place(sys_m.A, sys_m.B, poles)
 
 sfsys = sys_m % printing original matrices
@@ -208,9 +208,9 @@ stepinfo(sfsys).Overshoot
 
 
 %% LQR design
-q1 = 3e2;
-q2 = 10;
-q3 = 10;
+q1 = 3e3;
+q2 = 1e1;
+q3 = 1e1;
 Q = diag([q1, q1, q2, q2, q3]);
 R = [1];
 [P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
@@ -225,6 +225,17 @@ step(lqsys)
 grid on
 stepinfo(lqsys).TransientTime
 %[yout,tout]
+
+%% compare results
+figure()
+title('Comparison of tuning methods')
+step(olqsys)
+hold on
+step(lqsys)
+step(sfsys)
+hold off
+legend('Optimal LQ','Manual LQ', 'Manual pole-placement')
+grid on
 
 %% Transform system to CT for parameters
 
