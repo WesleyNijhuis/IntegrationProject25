@@ -220,8 +220,8 @@ plot(ymeas(:,2))
 hold off
 legend('alpha','theta')
 
-%% Initial guess can be entered in the function theta2matrices!
-function [Ac, Bc, Cc, Dc] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT)
+%% Initial for full system using A0 from autonomous system identification
+function [Ac, Bc, Cc, Dc] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Km,Rm)
 g = 9.81;
 
 J1_hat = J1 + m1 * l1^2;
@@ -231,8 +231,6 @@ J0_hat = J1_hat + m2 * L1^2;
 
 B31 = J2_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 B41 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-B32 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-B42 = J0_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 
 A41 = A0(4,1);
 A42 = A0(4,2);
@@ -245,12 +243,14 @@ A33 = A0(3,3);
 A34 = A0(3,4); 
 
 %switching signs for downwards position
-B32 = -B32;
 B41 = -B41;
 
 % Adding extended state parameters
 A33 = A33 + B31*Km^2/Rm;
 A43 = A43 + B41*Km^2/Rm;
+
+B31 = B31 * 5 * Km / Rm;
+B41 = B41 * 5 * Km / Rm;
 
 Ac = [[0,0,1,0];
      [0,0,0,1];
@@ -264,38 +264,24 @@ Cc = [[1,0,0,0];
 
 Dc = [0;0];
 end
-%% Splitting into training/validation set
-%TODO: in our case the training set and validation cant be split as we're
-%doing a frequency sweep
-% f_t = 0.07;                 % fraction of data dedicated to training
-% ut = u(1:round(end*f_t));            % input for train-set
-% uv = u(round(end*f_t)+1:end);          % input for validation-set
-% yt = ymeas(1:round2even(end*f_t));        % output for train-set
-% yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
+%% ODE for input dynamics (based on given A)
+
+function [A,B,C,D] = greyboxss(aut_sys,Km,Rm,b1,b2)
+A = aut_sys.A;
+A = aut_sys.A - [0,0,0,0;0,0,0,0;0,0,A(3,3)*Km^2/Rm,0;0,0,A(4,3)*Km^2/Rm,0];
 %% Run Algorithm
 
 % load training data
 training_data = [ymeas,uin];
 
-% initial guess (from data sheet and paper), still need to guess damping
-b1 = 0.0015; 
-b2 = 0.0005;
+% additional parameters for B
 
-m1 = 0.095; %kg
-m2 = 0.024; %kg
-l1 = 0.085/2; %(m)
-l2 = 0.129/2; %Lp/2 (m) 
-L1 = 0.085; %(m)
-L2 = 0.129 - 0.01; %(m)
-J1 = 0.6*1e-6 + 4*1e-6 + m1*(L1^2)/12; %Jr+Jm (kg/m2) %Jp and Ja SHOULD BE AROUND THE CENTER!
-J2 = m2*((L2)^2)/12; %(kg/m2)
 Lm = 1.16 * 1e-3; %mH
 Km = 0.042; %0.042(Nm/A)
 Rm = 8.4; %(ohm)
-KT = 0;
 
 % Using parameters acquired from autonomous experiments!
-[Af0,Bf0,Cf0,Df0] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT);
+[Af0,Bf0,Cf0,Df0] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Km,Rm);
 
 %K = zeros(4,1); % no kalman observer for now: add later
 %T_s = 0.01; % sampling time
@@ -340,8 +326,8 @@ legend('simulated','data')
 % Setting which entries are the parameters
 init_sys.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
-                             [1,1,1,1]; %A31 is a torsional factor induced by cable
-                             [0,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
+                             [0,0,1,0]; %A31 is a torsional factor induced by cable
+                             [0,0,1,0]]; % only the parameter entries (1 or 'True') can be changed
 init_sys.Structure.B.Free = [0;0;1;1];
 init_sys.Structure.C.Free = zeros(2,4);
 init_sys.Structure.D.Free = [0;0];
@@ -377,71 +363,3 @@ compare(training_data,init_sys,sys)
 % plot(yv)
 % legend('ypred', 'yv')
 % hold off 
-%% Parameters to state matrices
-function [Abar,Bbar,C,D,x0] = theta2matrices(theta)
-%%
-% Function INPUT
-% theta Parameter vector (vector of size: according to the realization)
-%
-%
-% Function OUTPUT
-% Abar System matrix A (matrix of size n x n)
-% Bbar System matrix B (matrix of size n x m)
-% C System matrix C (matrix of size l x n)
-% D System matrix D (matrix of size l x m)
-% x0 Initial state (vector of size n x one)
-
-Abar=[[0, 0, 1, 0, 0]; 
-    [0, 0, 0, 1, 0]; 
-    [0, theta(1), theta(3), theta(6), theta(8)]; 
-    [0, theta(2), theta(4), theta(7), theta(9)]; 
-    [0, 0, theta(5), 0, theta(10)]]; 
-
-Bbar=[0 ; 0; 0; 0; theta(11)]; 
-
-C=[[1, 0, 0, 0, 0];[0, 1, 0, 0, 0]];
-
-D=[0;0];
-
-x0=[0; 0; 0; 0; 0];
-end
-
-%% Simulating systems
-function [y, x] = simsystem(A, B, C, D, x0, u)
-% Instructions:
-% Simulating a linear dynamic system given input u, matrices A,B,C,D ,and
-% initial condition x(0)
-%
-% n = size(A, 1);
-% m = size(B, 2);
-% l = size(C, 1);
-% N = size(u, 1);
-%
-% Function INPUT
-% A system matrix (matrix of size n x n)
-% B system matrix (matrix of size n x m)
-% C system matrix (matrix of size l x n)
-% D system matrix (matrix of size l x m)
-
-% x0 initial state (vector of size n x one)
-% u system input (matrix of size N x m)
-%
-% Function OUTPUT
-% x state of system (matrix of size N x n)
-% y system output (matrix of size N x l)
-
-x(1,:) = x0';
-%%%%%% YOUR CODE HERE %%%%%%
-y = zeros(max(size(u,1), size(u,1)), 2);
-for k=1:size(u,1)
- x(k+1, :) = x(k, :) * A.' + u(k) * B.'; % Transposed state equation
- y(k,:) = x(k, :) * C.' + u(k) * D.';
-end
-x=x(1:end -1, :); % removing the last entry to get Nxn x()
-end
-
-%% additional functions
-
-function result=round2even(x)
-    result = 2*round(x/2);
-end

@@ -16,7 +16,7 @@ t = dt*(1:1:size(uin,1)).';
 
 %Cutting the total dataset into subexperiments (here theta only starting from
 %~+3.14)
-Et_start = [524,1435,4212,6559,7740,10087,11180] + 550; % +550 to get rid of nonlinear domain
+Et_start = [524,1435,4212,6559,7740,10087,11180] + 500; % +550 to get rid of nonlinear domain
 Et_end = [1275,2188,5089,7424,8620,10935,12051];
 
 plot(uin)
@@ -164,36 +164,11 @@ opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 1000;
 opt.SearchOptions.Tolerance = 1e-8;
 opt.InitialState = 'estimate';
+opt.EnforceStability = true;
 %opt.OutputOffset = [mean(ymeas(:,1));0];
-sys = pem(training_data, init_sys,opt);
-
-disp('Results theta 1, set 1')
-Abar = sys.A
-Bbar = sys.B
-C = sys.C
-D = sys.D
-x0 = sys.x0
+sys_aut = pem(training_data, init_sys,opt);
 
 compare(training_data,init_sys,sys)
-% ypred = simsystem(Abar, Bbar, C, D, x0, uv);
-% ypred = ypred(:);
-% 
-% RMSE = rmse(ypred, yv);
-% VAF = 1 - var(yv - ypred)/var(yv);
-% 
-% figure('position', [0, 0, 800, 400])  % create new figure with specified size  
-% 
-% plot(ypred)
-% title(['Resuls for theta1, training set 1 with RMSE of ', num2str(RMSE), ' and VAF of ', num2str(VAF)])
-% 
-% hold on
-% plot(yv)
-% legend('ypred', 'yv')
-% hold off 
-
-
-
-
 
 %% Loading acquired data full state space
 load('../Data/Sweep 6 alpha.mat');   % loading alpha's
@@ -204,7 +179,7 @@ alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 8000; %for debugging
-data_begin = 1;
+data_begin = 1000;
 ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);            
 dt = 0.01;
@@ -220,8 +195,8 @@ plot(ymeas(:,2))
 hold off
 legend('alpha','theta')
 
-%% Initial guess can be entered in the function theta2matrices!
-function [Ac, Bc, Cc, Dc] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT)
+%% Initial for full system using A0 from autonomous system identification
+function [Ac, Bc, Cc, Dc] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Km,Rm)
 g = 9.81;
 
 J1_hat = J1 + m1 * l1^2;
@@ -231,8 +206,6 @@ J0_hat = J1_hat + m2 * L1^2;
 
 B31 = J2_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 B41 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-B32 = (m2 * L1 * l2) / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
-B42 = J0_hat / (J0_hat * J2_hat - m2^2 * L1^2 * l2^2);
 
 A41 = A0(4,1);
 A42 = A0(4,2);
@@ -245,12 +218,14 @@ A33 = A0(3,3);
 A34 = A0(3,4); 
 
 %switching signs for downwards position
-B32 = -B32;
 B41 = -B41;
 
 % Adding extended state parameters
 A33 = A33 + B31*Km^2/Rm;
 A43 = A43 + B41*Km^2/Rm;
+
+B31 = B31 * 5 * Km / Rm;
+B41 = B41 * 5 * Km / Rm;
 
 Ac = [[0,0,1,0];
      [0,0,0,1];
@@ -277,25 +252,14 @@ end
 % load training data
 training_data = [ymeas,uin];
 
-% initial guess (from data sheet and paper), still need to guess damping
-b1 = 0.0015; 
-b2 = 0.0005;
+% additional parameters for B
 
-m1 = 0.095; %kg
-m2 = 0.024; %kg
-l1 = 0.085/2; %(m)
-l2 = 0.129/2; %Lp/2 (m) 
-L1 = 0.085; %(m)
-L2 = 0.129 - 0.01; %(m)
-J1 = 0.6*1e-6 + 4*1e-6 + m1*(L1^2)/12; %Jr+Jm (kg/m2) %Jp and Ja SHOULD BE AROUND THE CENTER!
-J2 = m2*((L2)^2)/12; %(kg/m2)
 Lm = 1.16 * 1e-3; %mH
 Km = 0.042; %0.042(Nm/A)
 Rm = 8.4; %(ohm)
-KT = 0;
 
 % Using parameters acquired from autonomous experiments!
-[Af0,Bf0,Cf0,Df0] = initialguess_full(A0,m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT);
+[Af0,Bf0,Cf0,Df0] = initialguess_full(sys_aut.A,m1,m2,l1,l2,L1,J1,J2,Km,Rm);
 
 %K = zeros(4,1); % no kalman observer for now: add later
 %T_s = 0.01; % sampling time
@@ -340,7 +304,7 @@ legend('simulated','data')
 % Setting which entries are the parameters
 init_sys.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
-                             [1,1,1,1]; %A31 is a torsional factor induced by cable
+                             [0,1,1,1]; %A31 is a torsional factor induced by cable
                              [0,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
 init_sys.Structure.B.Free = [0;0;1;1];
 init_sys.Structure.C.Free = zeros(2,4);
@@ -348,9 +312,10 @@ init_sys.Structure.D.Free = [0;0];
 
 
 opt = ssestOptions('Display','on','SearchMethod','gna');
-opt.SearchOptions.MaxIterations = 1000;
+opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-8;
-opt.InitialState = 'zero';
+opt.InitialState = 'estimate';
+opt.EnforceStability = false;
 opt.OutputOffset = [mean(ymeas(:,1));0];
 sys = pem(training_data, init_sys,opt);
 

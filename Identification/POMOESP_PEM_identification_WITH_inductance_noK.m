@@ -15,20 +15,6 @@ uin = u(data_begin:data_end,2);
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
-% % Removing deadzone induced offset
-% dz_right = 0.0028;
-% dz_left = -0.0024;
-% 
-% for i=1:size(uin,1)
-%     if uin(i,1) < dz_right
-%         if uin(i,1) > 0
-%             uin(i,1) = 0;
-%         elseif uin(i,1) > dz_left
-%             uin(i,1) = 0;
-%         end
-%     end
-% end
-
 plot(uin)
 title('uin')
 figure
@@ -90,11 +76,15 @@ opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
-%opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
+opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
 opt.EnforceStability = false;
+opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
+
+opt.Regularization.Lambda = 1e-6;
+opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation and num. stability
 
 sys = pem(training_data, sys_init2,opt);
 
@@ -121,7 +111,7 @@ theta = theta(:,2);
 
 data_end = 10000; %for debugging
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+ymeas = [(alpha(data_begin:data_end) - mean(alpha(data_begin:data_end))), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);              
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
@@ -167,7 +157,9 @@ lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
 evaluateFcn = @(V) evaluate(W,sys,V,n);
-options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, Display = "iter");
+options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
+    true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, ...
+    Display = "iter");
 [sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options)
 Q = diag(sol(1:n));
 R = 1;

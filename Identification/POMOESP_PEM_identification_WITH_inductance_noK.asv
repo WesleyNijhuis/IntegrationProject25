@@ -15,20 +15,6 @@ uin = u(data_begin:data_end,2);
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
-% % Removing deadzone induced offset
-% dz_right = 0.0028;
-% dz_left = -0.0024;
-% 
-% for i=1:size(uin,1)
-%     if uin(i,1) < dz_right
-%         if uin(i,1) > 0
-%             uin(i,1) = 0;
-%         elseif uin(i,1) > dz_left
-%             uin(i,1) = 0;
-%         end
-%     end
-% end
-
 plot(uin)
 title('uin')
 figure
@@ -90,11 +76,14 @@ opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
-%opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
+opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
 opt.EnforceStability = false;
 sys_init2 = n4sid(training_data, init_sys,opt);
+
+opt.Regularization.Lambda = 1e-8;
+opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation
 
 sys = pem(training_data, sys_init2,opt);
 
@@ -152,7 +141,7 @@ R = 1;
 [~, ~, K] = dare(system.A, system.B, Q, R);
 
 [u_max, overshoot,settling_time, rise_time] = results(system,K);
-penalty = 1e6 / (1 + exp(-100*(u_max - 4.7)));
+penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
 
 
 f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + penalty;
@@ -162,12 +151,15 @@ end
 
 
 % LQR optimization
-W = [0,1,1,100,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
+W = [0,1,1,10,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
 evaluateFcn = @(V) evaluate(W,sys,V,n);
-options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, Display = "iter");
+options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
+    true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, ...
+    Display = "iter");
+options.Regularization.Lambda = 0.
 [sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options)
 Q = diag(sol(1:n));
 R = 1;
