@@ -314,6 +314,25 @@ legend('simulated','data')
 % init_sys.Structure.B.Minimum = B0 - abs(B0).*CF;
 % init_sys.Structure.B.Maximum = B0 + abs(B0).*CF;
 
+% From previous optimization:
+% 
+% A0 = [0 0 1 0;
+%         0 0 0 1;
+%        -0.0012 82.1367 -0.0266 0.0221;
+%         0 -161.8316 0 -0.0134];
+% 
+% B0 = [0;
+%         0;
+%         338.3623;
+%        -666.5447];
+% 
+% C0 = [1 0 0 0;
+%      0 1 0 0];
+% 
+% D0 = [0;
+%      0];
+
+init_sys = idss(A0,B0,C0,D0);
 % Setting which entries are the parameters
 init_sys.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
@@ -331,7 +350,7 @@ init_sys.Structure.B.Minimum = [0,0,0,-BIG];
 
 
 opt = ssestOptions('Display','on','SearchMethod','auto');
-opt.SearchOptions.MaxIterations = 10000;
+opt.SearchOptions.MaxIterations = 50000;
 opt.SearchOptions.Tolerance = 1e-10;
 opt.InitialState = 'zero';
 opt.EnforceStability = false;
