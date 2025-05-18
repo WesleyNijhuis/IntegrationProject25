@@ -244,16 +244,10 @@ utest = 0.005 * chirp(t_test,0.1,120,5);
 lsim(sys,utest,t_test)
 %plot(utest)
 
-%% T = [C;CA] from observability matrix!!
+%% testing T hypothesis
 
 T = [sys.C;sys.C*sys.A];
 Ds = sys.D;
 Cs = sys.C/T
 Bs = T*sys.B
 As = T*sys.A/T
-
-struct_sys = ss(As,Bs,Cs,Ds);
-
-t_test = 0:0.01:120;
-utest = 0.005 * chirp(t_test,0.1,120,5);
-lsim(sys,utest,t_test)
