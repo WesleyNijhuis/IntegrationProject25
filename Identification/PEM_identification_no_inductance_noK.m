@@ -65,7 +65,7 @@ Ac = [[0,0,1,0];
      [A31,A32,A33,A34];
      [A41,A42,A43,A44]];
 
-Bc = [0;0;B31;B41];
+Bc = 5*[0;0;B31;B41];
 
 Cc = [[1,0,0,0];
       [0,1,0,0]];
@@ -103,17 +103,6 @@ Rm = 8.4; %(ohm)
 KT = 3;
 
 [A0,B0,C0,D0] = initialguess(m1,m2,l1,l2,L1,J1,J2,Lm,Km,Rm,b1,b2,KT);
-
-% Set 1
-theta_init =  [-38.26;-151.88;-2548.8*b1;-2519.2*b1;-36.21;-2519.2*b2;-10001*b2;107.05;105.8;-7241;862];
-theta_init = rand(11,1)-5*rand(11,1);
-[A02, B02, C02, D02, x00] = theta2matrices(theta_init);
-
-% BIG TODO: CHANGE THE SS TO DISCRETIZED, DIFFERENT STRUCTURE?
-
-% PEM DT
-%K = zeros(4,1); % no kalman observer for now: add later
-%T_s = 0.01; % sampling time
 init_sys = idss(A0, B0, C0, D0); %x0 is 0
 %init_sys.x0 = x00;
 init_sys.Ts = 0;
@@ -142,17 +131,6 @@ legend('simulated','data')
 
 
 %% PEM
-% Setting some bounds for these parameters (we expect the initial guess of
-% each parameter to be within CF*100% of initial guess (But if we're
-% actually close, this shouldnt matter)
-
-% CF = 0.5;
-% init_sys.Structure.A.Minimum = A0 - abs(A0).*CF - 1000*[0,0,0,0,0;0,0,0,0,0;1,0,0,0,0;0,0,0,0,0;0,0,0,0,0]; % relax cons for A31
-% init_sys.Structure.A.Maximum = A0 + abs(A0).*CF + 1000*[0,0,0,0,0;0,0,0,0,0;1,0,0,0,0;0,0,0,0,0;0,0,0,0,0]; % relax cons for A31
-% init_sys.Structure.B.Minimum = B0 - abs(B0).*CF;
-% init_sys.Structure.B.Maximum = B0 + abs(B0).*CF;
-
-% Setting which entries are the parameters
 init_sys.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
                              [1,1,1,1]; %A31 is a torsional factor induced by cable
@@ -161,12 +139,21 @@ init_sys.Structure.B.Free = [0;0;1;1];
 init_sys.Structure.C.Free = zeros(2,4);
 init_sys.Structure.D.Free = [0;0];
 
+BIG = 1e6;
+init_sys.Structure.A.Maximum = [0,0,1,0;0,0,0,1;0,BIG,0,BIG;0,0,0,0];
+init_sys.Structure.A.Minimum = [0,0,1,0;0,0,0,1;-BIG,0,-BIG,0;0,-BIG,-BIG,-BIG];
+init_sys.Structure.B.Maximum = [0,0,BIG,0];
+init_sys.Structure.B.Minimum = [0,0,0,-BIG];
 
-opt = ssestOptions('Display','on','SearchMethod','gna');
-opt.SearchOptions.MaxIterations = 1000;
-opt.SearchOptions.Tolerance = 1e-8;
+opt = ssestOptions('Display','on','SearchMethod','auto');
+opt.SearchOptions.MaxIterations = 2000;
+opt.SearchOptions.Tolerance = 1e-10;
 opt.InitialState = 'zero';
-opt.OutputOffset = [mean(ymeas(:,1));0];
+opt.EnforceStability = false;
+opt.Regularization.Lambda = 1e-10;
+opt.Regularization.Nominal = 'model'; % restricting parameters to stay close to initial guess (using a priori knowledge)
+opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))];
+opt.Advanced.DDC = 'on';
 sys = pem(training_data, init_sys,opt);
 
 disp('Results theta 1, set 1')
@@ -177,86 +164,3 @@ D = sys.D
 x0 = sys.x0
 
 compare(training_data,init_sys,sys)
-% ypred = simsystem(Abar, Bbar, C, D, x0, uv);
-% ypred = ypred(:);
-% 
-% RMSE = rmse(ypred, yv);
-% VAF = 1 - var(yv - ypred)/var(yv);
-% 
-% figure('position', [0, 0, 800, 400])  % create new figure with specified size  
-% 
-% plot(ypred)
-% title(['Resuls for theta1, training set 1 with RMSE of ', num2str(RMSE), ' and VAF of ', num2str(VAF)])
-% 
-% hold on
-% plot(yv)
-% legend('ypred', 'yv')
-% hold off 
-%% Parameters to state matrices
-function [Abar,Bbar,C,D,x0] = theta2matrices(theta)
-%%
-% Function INPUT
-% theta Parameter vector (vector of size: according to the realization)
-%
-%
-% Function OUTPUT
-% Abar System matrix A (matrix of size n x n)
-% Bbar System matrix B (matrix of size n x m)
-% C System matrix C (matrix of size l x n)
-% D System matrix D (matrix of size l x m)
-% x0 Initial state (vector of size n x one)
-
-Abar=[[0, 0, 1, 0, 0]; 
-    [0, 0, 0, 1, 0]; 
-    [0, theta(1), theta(3), theta(6), theta(8)]; 
-    [0, theta(2), theta(4), theta(7), theta(9)]; 
-    [0, 0, theta(5), 0, theta(10)]]; 
-
-Bbar=[0 ; 0; 0; 0; theta(11)]; 
-
-C=[[1, 0, 0, 0, 0];[0, 1, 0, 0, 0]];
-
-D=[0;0];
-
-x0=[0; 0; 0; 0; 0];
-end
-
-%% Simulating systems
-function [y, x] = simsystem(A, B, C, D, x0, u)
-% Instructions:
-% Simulating a linear dynamic system given input u, matrices A,B,C,D ,and
-% initial condition x(0)
-%
-% n = size(A, 1);
-% m = size(B, 2);
-% l = size(C, 1);
-% N = size(u, 1);
-%
-% Function INPUT
-% A system matrix (matrix of size n x n)
-% B system matrix (matrix of size n x m)
-% C system matrix (matrix of size l x n)
-% D system matrix (matrix of size l x m)
-
-% x0 initial state (vector of size n x one)
-% u system input (matrix of size N x m)
-%
-% Function OUTPUT
-% x state of system (matrix of size N x n)
-% y system output (matrix of size N x l)
-
-x(1,:) = x0';
-%%%%%% YOUR CODE HERE %%%%%%
-y = zeros(max(size(u,1), size(u,1)), 2);
-for k=1:size(u,1)
- x(k+1, :) = x(k, :) * A.' + u(k) * B.'; % Transposed state equation
- y(k,:) = x(k, :) * C.' + u(k) * D.';
-end
-x=x(1:end -1, :); % removing the last entry to get Nxn x()
-end
-
-%% additional functions
-
-function result=round2even(x)
-    result = 2*round(x/2);
-end

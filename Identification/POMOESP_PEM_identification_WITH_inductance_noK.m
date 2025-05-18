@@ -76,7 +76,7 @@ opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
-opt.OutputOffset = [mean(ymeas(:,1));0]; %CHECK IF THIS WORKS BETTER
+opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
 opt.EnforceStability = false;
@@ -229,166 +229,17 @@ hold off
 legend('Optimal LQ','Manual LQ', 'Manual pole-placement')
 grid on
 
-%% Transform system to CT for parameters
-
-sys_c = d2c(sys,'zoh');
-impulse(sys_c)
-hold on
-impulse(sys)
-hold off
-legend()
-
-
-% %%%%%%%%%% Everything after this is not working correctly (yet) %%%%%%%%
+% %% Transform system to CT for parameters
 % 
-% %% Find a transformation matrix T to go from blackbox to structured parameter matrices
-% O = obsv(sys_c.A, sys_c.C);
-% Ostar = O(1:4,1:5);
-% Ostar_t = [[1,0,0,0,0];
-%           [0,1,0,0,0];
-%           [0,0,1,0,0];
-%           [0,0,0,1,0]];
-% 
-% H = kron(eye(5), Ostar_t);
-% f = Ostar(:);
-% 
-% Aeq = zeros(4, 25);
-% for i = 1:4
-%     Aeq(i, (i-1)*5 + (1:5)) = sys_c.B';  % row i of T times B
-% end
-% 
-% beq = zeros(4,1);
-% 
-% options = optimoptions('lsqlin', 'Display', 'iter', ...
-%     'OptimalityTolerance', 1e-12, 'ConstraintTolerance', 1e-15);
-% Tentries = lsqlin(H, f, [], [], Aeq, beq);
-% T = reshape(Tentries,5,5);
-% 
-% %% Give structured parameter matrices
-% A = T*Abar/T
-% B = T*Bbar
-% C = Cbar/T
-% 
-% sys2_c = ss(A,B,C,D)
-% impulse(sys2_c)
+% sys_c = d2c(sys,'zoh');
+% impulse(sys_c)
 % hold on
 % impulse(sys)
 % hold off
 % legend()
-% 
-% % Note: this gives state matrices for the sampled system
-% 
-% 
-% %% Estimating CT structured parameters
-% 
-% % B(1:4) = zeros(4,1);
-% % A(:,1) = zeros(5,1);
-% % A(5,2) = 0;
-% % A(5,4) = 0;
-% % 
-% % init_sys2 = idss(A, B, C, D) 
-% % init_sys2.Ts = 0;
-% % init_sys2.Structure.A.Free = [[0,0,0,0,0];
-% %                              [0,0,0,0,0];
-% %                              [0,1,1,1,1];
-% %                              [0,1,1,1,1];
-% %                              [0,0,1,0,1]]; % only the parameter entries (1 or 'True') can be changed
-% % init_sys2.Structure.B.Free = [0;0;0;0;1];
-% % init_sys2.Structure.C.Free = zeros(2,5);
-% % init_sys2.Structure.D.Free = 0;
-% % 
-% % opt2 = ssestOptions('Display','on','SearchMethod','auto');
-% % opt2.SearchOptions.MaxIterations = 2000;
-% % %opt2.InitialState = 'estimate';
-% % sys2 = pem(training_data, init_sys2,opt2);
-% % 
-% % 
-% % impulse(sys)
-% % hold on
-% % impulse(sys2)
-% % hold off
-% 
-% %% Validation
-% 
-% % ypred = simsystem(Abar, Bbar, C, D, x0, uv);
-% % ypred = ypred(:);
-% % 
-% % RMSE = rmse(ypred, yv);
-% % VAF = 1 - var(yv - ypred)/var(yv);
-% % 
-% % figure('position', [0, 0, 800, 400])  % create new figure with specified size  
-% % 
-% % plot(ypred)
-% % title(['Resuls for theta1, training set 1 with RMSE of ', num2str(RMSE), ' and VAF of ', num2str(VAF)])
-% % 
-% % hold on
-% % plot(yv)
-% % legend('ypred', 'yv')
-% % hold off 
-% %% Parameters to state matrices
-function [Abar,Bbar,C,D,x0] = theta2matrices(theta)
-%%
-% Function INPUT
-% theta Parameter vector (vector of size: according to the realization)
-%
-%
-% Function OUTPUT
-% Abar System matrix A (matrix of size n x n)
-% Bbar System matrix B (matrix of size n x m)
-% C System matrix C (matrix of size l x n)
-% D System matrix D (matrix of size l x m)
-% x0 Initial state (vector of size n x one)
 
-Abar=[[0, 0, 1, 0, 0]; 
-    [0, 0, 0, 1, 0]; 
-    [0, theta(1), theta(3), theta(6), theta(8)]; 
-    [0, theta(2), theta(4), theta(7), theta(9)]; 
-    [0, 0, theta(5), 0, theta(10)]]; 
-
-Bbar=[0 ; 0; 0; 0; theta(11)]; 
-
-C=[[1, 0, 0, 0, 0];[0, 1, 0, 0, 0]];
-
-D=[0;0];
-
-x0=[0; 0; 0; 0; 0];
-end
-
-%% Simulating systems
-function [y, x] = simsystem(A, B, C, D, x0, u)
-% Instructions:
-% Simulating a linear dynamic system given input u, matrices A,B,C,D ,and
-% initial condition x(0)
-%
-% n = size(A, 1);
-% m = size(B, 2);
-% l = size(C, 1);
-% N = size(u, 1);
-%
-% Function INPUT
-% A system matrix (matrix of size n x n)
-% B system matrix (matrix of size n x m)
-% C system matrix (matrix of size l x n)
-% D system matrix (matrix of size l x m)
-
-% x0 initial state (vector of size n x one)
-% u system input (matrix of size N x m)
-%
-% Function OUTPUT
-% x state of system (matrix of size N x n)
-% y system output (matrix of size N x l)
-x(1,:) = x0';
-%%%%%% YOUR CODE HERE %%%%%%
-y = zeros(max(size(u,1), size(u,1)), 2);
-for k=1:size(u,1)
- x(k+1, :) = x(k, :) * A.' + u(k) * B.'; % Transposed state equation
- y(k,:) = x(k, :) * C.' + u(k) * D.';
-end
-x=x(1:end -1, :); % removing the last entry to get Nxn x()
-end
-
-%% additional functions
-
-function result=round2even(x)
-    result = 2*round(x/2);
-end
+%% Debugging
+t_test = 0:0.01:120;
+utest = 0.005 * chirp(t_test,0.1,120,5);
+lsim(sys,utest,t_test)
+%plot(utest)
