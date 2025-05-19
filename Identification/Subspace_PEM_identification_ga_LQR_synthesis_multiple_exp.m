@@ -94,7 +94,7 @@ opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
 sys_init2.Ts = 0;
 
-opt.Regularization.Lambda = 1e-16;
+opt.Regularization.Lambda = 1e-12;
 opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation and num. stability
 
 sys = pem(training_data, sys_init2,opt);
