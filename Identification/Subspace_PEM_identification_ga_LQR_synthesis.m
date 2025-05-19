@@ -1,9 +1,9 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
+load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
+load('../Data/Squaresweep 1 theta.mat');   % loading theta's
+load('../Data/Squaresweep 1 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -254,7 +254,7 @@ f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + pe
 end
 
 % LQR optimization
-W = [0,0,0,0,0,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
+W = [1,0,1,0,0,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
 
 lb = zeros(1,n);
 ub = [];     
