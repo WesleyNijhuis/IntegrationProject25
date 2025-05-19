@@ -77,7 +77,7 @@ opt.InitialState = 'zero';
 opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
-opt.EnforceStability = false;
+opt.EnforceStability = true;
 opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
 sys_init2.Ts = 0;
@@ -212,6 +212,9 @@ grid on
 figure()
 pzplot(olqsys)
 grid on
+
+%% Turning the pendulum upside down
+
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh')
 
@@ -251,16 +254,16 @@ f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + pe
 end
 
 % LQR optimization
-W = [1e-1,1e2,1e-2,1e1,1e-1,1e7]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
+W = [1,0,1,0,0,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
 
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
 evaluateFcn = @(V) evaluate_d(W,str_discr_sys,V,n,dt);
-est_max_V = 1e7;
+est_max_V = 1e2;
 initrange = [0,0,0,0;est_max_V,est_max_V,est_max_V,est_max_V];
 options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
-    true, "PopulationSize", 50, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
+    true, "PopulationSize", 70, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
     MaxGenerations = 500, Display = "iter");
 [sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options);
 

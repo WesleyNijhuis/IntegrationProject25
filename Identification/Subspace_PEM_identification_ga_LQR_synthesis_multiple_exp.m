@@ -13,28 +13,45 @@ theta = theta(:,2);
 
 data_end = 8000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end) - mean(alpha), theta(data_begin:data_end) - mean(theta)];
 uin = u(data_begin:data_end,2);     
 
-training_data_y{i} = ymeas
+training_data_y{1} = ymeas;
+training_data_u{1} = uin;
 
+%training set 2: square sweep
 load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
 load('../Data/Squaresweep 1 theta.mat');   % loading theta's
 load('../Data/Squaresweep 1 input.mat');   % loading inputs
+alpha = alpha(:,2);
+theta = theta(:,2);
 
-      
+data_end = 8000;
+data_begin = 1;
+ymeas = [alpha(data_begin:data_end) - mean(alpha), theta(data_begin:data_end) - mean(theta)];
+uin = u(data_begin:data_end,2);     
+
+training_data_y{2} = ymeas;
+training_data_u{2} = uin;
+
+%training set 3: square
+load('../Data/Square 1 alpha.mat');   % loading alpha's
+load('../Data/Square 1 theta.mat');   % loading theta's
+load('../Data/Square 1 input.mat');   % loading inputs
+alpha = alpha(:,2);
+theta = theta(:,2);
+
+data_end = 5000;
+data_begin = 1;
+ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+uin = u(data_begin:data_end,2);     
+
+training_data_y{3} = ymeas;
+training_data_u{3} = uin;
+
+%% Defining sampling time
 dt = 0.01;
-t = dt*(1:1:size(uin,1)).';
 
-plot(uin)
-title('uin')
-figure
-plot(ymeas(:,1))
-title('outputs')
-hold on
-plot(ymeas(:,2))
-hold off
-legend('alpha','theta')
 %% Singular values
  s = 20;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
@@ -96,7 +113,7 @@ sys_init2.Ts = 0;
 opt.Regularization.Lambda = 1e-6;
 opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation and num. stability
 
-sys = pem(training_data, sys_init2,opt);
+sys = ssest(training_data, sys_init2,opt);
 
 disp('Results theta 1, set 1')
 Abar = sys.A
@@ -137,7 +154,7 @@ sys_init3.Structure.C.Free = zeros(2,4);
 sys_init3.Structure.D.Free = [0;0];
 
 
-struct_sys = pem(training_data, sys_init3,opt);
+struct_sys = ssest(training_data, sys_init3,opt);
 
 
 %% Validation (for every test do two runs)
@@ -151,7 +168,7 @@ theta = theta(:,2);
 
 data_end = 10000; %for debugging
 data_begin = 1;
-ymeas = [(alpha(data_begin:data_end) - mean(alpha(data_begin:data_end))), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end) - mean(alpha), theta(data_begin:data_end) - mean(theta)];
 uin = u(data_begin:data_end,2);              
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
