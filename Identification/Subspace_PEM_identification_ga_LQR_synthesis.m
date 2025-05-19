@@ -1,7 +1,7 @@
 close all; clear; clc;
 
 %% Loading acquired data
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
+load('../Data/');   % loading alpha's
 load('../Data/Sweep 6 theta.mat');   % loading theta's
 load('../Data/Sweep 6 input.mat');   % loading inputs
 
@@ -77,9 +77,10 @@ opt.InitialState = 'zero';
 opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.InitializeMethod = 'n4sid';
 opt.N4Weight = 'MOESP';
-opt.EnforceStability = false;
+opt.EnforceStability = true;
 opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
+sys_init2.Ts = 0;
 
 opt.Regularization.Lambda = 1e-6;
 opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation and num. stability
@@ -98,15 +99,35 @@ figure
 impulse(sys, Config)
 eig(sys.A)
 
-%% Enforcing structure via state coordinate transformation
+%% Enforcing structure via state coordinate transformation (T = [C;CA])
 
 T = [sys.C;sys.C*sys.A];
 Ds = sys.D;
-Cs = sys.C/T
-Bs = T*sys.B
-As = T*sys.A/T
+Cs = sys.C/T;
+Bs = T*sys.B;
+As = T*sys.A/T;
 
-struct_sys = ss(As,Bs,Cs,Ds);
+semi_struct_sys = ss(As,Bs,Cs,Ds);
+
+%% Conditioning B to be [0;0;*;*]
+corrected_B = semi_struct_sys.B;
+corrected_B(1) = 0;
+corrected_B(2) = 0;
+
+sys_init3 = idss(semi_struct_sys.A,corrected_B,semi_struct_sys.C,semi_struct_sys.D);
+sys_init3.Ts = 0;
+
+sys_init3.Structure.A.Free = [[0,0,0,0];
+                             [0,0,0,0];
+                             [1,1,1,1]; %A31 is a torsional factor induced by cable
+                             [1,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
+sys_init3.Structure.B.Free = [0;0;1;1];
+sys_init3.Structure.C.Free = zeros(2,4);
+sys_init3.Structure.D.Free = [0;0];
+
+
+struct_sys = pem(training_data, sys_init3,opt);
+
 
 %% Validation (for every test do two runs)
 
@@ -128,18 +149,25 @@ validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys, struct_sys)
 
-%% Optimal LQR syntesis using genetic algorithm
+%% (CONTINUOUS VERSION) - Optimal LQR syntesis using genetic algorithm
+close all
 
-function [u_max, overshoot,settling_time, rise_time] = results(system,K)
-% K is the resulting stabilizing feedbackgain from DARE
+function [u_max, overshoot,settling_time, rise_time, f_fp] = results(system,K)
+% K is the resulting stabilizing feedbackgain from ARE
 % system is the uncontrolled system of interest
-system.A = system.A - system.B*K;
+
+system.A = system.A - system.B*K; % A-> Ak
+
+DC_gain = dcgain(system); 
+system.B = system.B / DC_gain(1); % xdot = Ak x + BG r 
+
 info = stepinfo(system);
 settling_time = [info.TransientTime].';
 overshoot = [info.Overshoot].' + [info.Undershoot].';
 rise_time = [info.RiseTime].';
 [~,~,x] = step(system);
-u_max = max(abs(K*x.'));
+u_max = max(abs(1/DC_gain(1) - K*x.')); % step (1*G=1/DC_gain) + control inputs (Kx)
+f_fp = max(abs(pole(system)));
 end
 
 function f = evaluate(W, system,V,n)
@@ -147,20 +175,17 @@ function f = evaluate(W, system,V,n)
 % V = [q1 q2 ... r]
 Q = diag(V(1:n));
 R = 1;
-[~, ~, K] = dare(system.A, system.B, Q, R);
+[~, ~, K] = care(system.A, system.B, Q, R);
 
-[u_max, overshoot,settling_time, rise_time] = results(system,K);
-penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
+[u_max, overshoot,settling_time, rise_time,~] = results(system,K);
+%penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
+penalty = 1e6*max(0, u_max - 0.8)^4;
 
-
-f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + penalty;
-
+f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + penalty;
 end
 
-
-
 % LQR optimization
-W = [0,1,1,10,10]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts}
+W = [1e-1,1e1,1,1e-1,1,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole}
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
@@ -168,63 +193,127 @@ evaluateFcn = @(V) evaluate(W,struct_sys,V,n);
 options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
     true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, ...
     Display = "iter");
-[sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options)
+[sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options);
+
 Q = diag(sol(1:n));
 R = 1;
-[~,~,Kstar] = dare(struct_sys.A,struct_sys.B,Q,R);
-olqsys = struct_sys
+[~,~,Kstar] = care(struct_sys.A,struct_sys.B,Q,R)
+
+struct_sys
+olqsys = struct_sys;
 olqsys.A = struct_sys.A - struct_sys.B*Kstar;
-DC_gain = dcgain(olqsys)
+DC_gain = dcgain(olqsys);
 olqsys.B = olqsys.B / DC_gain(1);
 
+figure()
 step(olqsys)
-
-%% (modal) Transformation
-sys_m = canon(sys, 'modal)')
-
-step(sys, Config)
-hold on
-step(sys_m, Config)
-hold off
-legend()
-
-%% pole placement design
-poles = [0.4,0.45,0.9898 + 0.0037i,0.9898 - 0.0037i,0.5]
-poles = [0.95, 0.96,0.97,0.98,0.99];
-K = place(sys_m.A, sys_m.B, poles)
-
-sfsys = sys_m % printing original matrices
-sfsys.A = sfsys.A - sfsys.B*K;
-DC_gain = dcgain(sfsys);
-G = 1/DC_gain(1);
-sfsys.B = G*sfsys.B;
-%pzplot(lqsys)
-Config = RespConfig(Amplitude=1,Delay=0);
-step(sfsys, Config)
 grid on
-stepinfo(sfsys).TransientTime
-stepinfo(sfsys).Overshoot
-%[yout,tout]
 
+figure()
+pzplot(olqsys)
+grid on
 
-%% LQR design
-q1 = 3e3;
-q2 = 1e1;
-q3 = 1e1;
-Q = diag([q1, q1, q2, q2, q3]);
-R = [1];
-[P, cl_eig, K] = dare(sys_m.A, sys_m.B, Q, R)
+%% Turning the pendulum upside down
 
-lqsys = sys_m % printing original matrices
-lqsys.A = lqsys.A - lqsys.B*K;
+%% Discretize for implementation
+str_discr_sys = c2d(struct_sys,0.01,'zoh')
+
+%% (Discrete VERSION) - Optimal LQR syntesis using genetic algorithm
+close all
+
+function [u_max, overshoot,settling_time, rise_time, f_fp] = results_d(system,K,dt)
+% K is the resulting stabilizing feedbackgain from ARE
+% system is the uncontrolled system of interest
+
+system.A = system.A - system.B*K; % A-> Ak
+
+DC_gain = dcgain(system); 
+system.B = system.B / DC_gain(1); % xdot = Ak x + BG r 
+
+info = stepinfo(system);
+settling_time = [info.TransientTime].';
+overshoot = [info.Overshoot].' + [info.Undershoot].';
+rise_time = [info.RiseTime].';
+[~,~,x] = step(system);
+u_max = max(abs(1/DC_gain(1) - K*x.')); % step (1*G=1/DC_gain) + control inputs (Kx)
+f_fp = max(abs(log(pole(system))/dt));
+end
+
+function f = evaluate_d(W, system,V,n,dt)
+% W is a 1x3 vector of weights
+% V = [q1 q2 ... r]
+Q = diag(V(1:n));
+R = 1;
+[~, ~, K] = dare(system.A, system.B, Q, R);
+
+[u_max, overshoot,settling_time, rise_time, f_fp] = results_d(system,K,dt);
+%penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
+penalty = 1e6*max(0, u_max - 0.8)^4 + 1e6*max(0, f_fp - 18)^4; % restrict the input to 0.8 and the fastest pole to 18 rad/s
+
+f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + penalty;
+end
+
+% LQR optimization
+W = [0,0,0,0,0,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
+
+lb = zeros(1,n);
+ub = [];     
+V = optimvar('V',1,n,'LowerBound',0);
+evaluateFcn = @(V) evaluate_d(W,str_discr_sys,V,n,dt);
+est_max_V = 1e2;
+initrange = [0,0,0,0;est_max_V,est_max_V,est_max_V,est_max_V];
+options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
+    true, "PopulationSize", 70, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
+    MaxGenerations = 500, Display = "iter");
+[sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options);
+
+Q = diag(sol(1:n));
+R = 1;
+[~,~,Kstar] = dare(str_discr_sys.A,str_discr_sys.B,Q,R)
+
+str_discr_sys
+olqsys = str_discr_sys;
+olqsys.A = str_discr_sys.A - str_discr_sys.B*Kstar;
+DC_gain = dcgain(olqsys);
+olqsys.B = olqsys.B / DC_gain(1);
+
+figure()
+step(olqsys)
+grid on
+
+figure()
+pzplot(olqsys)
+grid on
+
+DC_gain(1)
+
+%% (DISCRETE VERSION) - Manual LQR design
+close all
+
+Q = diag([1, 1, 1, 1]);
+R = [0.1*1e4];
+[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
+
+lqsys = str_discr_sys % printing original matrices
+lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
 DC_gain = dcgain(lqsys);
 G = 1/DC_gain(1);
 lqsys.B = G*lqsys.B;
-%pzplot(lqsys)
+
+figure()
+pzplot(lqsys)
+
+figure()
 step(lqsys)
 grid on
+
 stepinfo(lqsys).TransientTime
-%[yout,tout]
+[~,~,x] = step(lqsys);
+
+figure()
+plot(K*x.');
+grid on
+u_max = max(abs(K*x.'));
 
 %% compare results
 figure()
