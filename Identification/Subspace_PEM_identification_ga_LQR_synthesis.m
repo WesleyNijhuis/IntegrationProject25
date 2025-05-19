@@ -1,28 +1,17 @@
 close all; clear; clc;
 
 %% Loading acquired data
-training_data_y = cell(1,3);
-training_data_u = cell(1,3);
-
-%training set 1: sweep
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
-alpha = alpha(:,2);
-theta = theta(:,2);
-
-data_end = 8000;
-data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-uin = u(data_begin:data_end,2);     
-
-training_data_y{i} = ymeas
-
 load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
 load('../Data/Squaresweep 1 theta.mat');   % loading theta's
 load('../Data/Squaresweep 1 input.mat');   % loading inputs
 
-      
+alpha = alpha(:,2);
+theta = theta(:,2);
+
+data_end = 8500; %for debugging
+data_begin = 1;
+ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+uin = u(data_begin:data_end,2);            
 dt = 0.01;
 t = dt*(1:1:size(uin,1)).';
 
@@ -149,7 +138,7 @@ load('../Data/Sweep 5 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 10000; %for debugging
+data_end = 6000; %for debugging
 data_begin = 1;
 ymeas = [(alpha(data_begin:data_end) - mean(alpha(data_begin:data_end))), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);              
