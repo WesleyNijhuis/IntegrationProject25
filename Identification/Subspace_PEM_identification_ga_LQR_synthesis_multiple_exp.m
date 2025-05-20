@@ -242,7 +242,15 @@ Bs(4,1) = -Bs(4,1);
 struct_sys.B = Bs;
 
 %% Discretize for implementation
-str_discr_sys = c2d(struct_sys,0.01,'zoh')
+str_discr_sys = c2d(struct_sys,0.01,'zoh');
+compare(validation_data,str_discr_sys);
+
+%% Estimate the process noise
+y_est = lsim(str_discr_sys, validation_data(:,3), t);
+error = y_est - validation_data(:,1:2);
+
+% Q = E[e^Te], anything we can't model is "noise"
+Q = error.' * error
 
 %% (Discrete VERSION) - Optimal LQR syntesis using genetic algorithm
 close all
