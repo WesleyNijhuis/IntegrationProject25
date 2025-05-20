@@ -37,7 +37,7 @@ training_data_u{1} = uin;
 dt = 0.01;
 
 %% Singular values
- s = 20;
+ s = 60;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
  [U,S,V] = svd(y_hank, 'econ');
  sing_vals = diag(S);
@@ -370,74 +370,78 @@ lsim(sys,utest,t_test)
 legend('structured system response')
 
 %% PO MOESP ALGORITHM
-function [A,B,C,D,x0]=pomoesp(u_train,y_train,s,n)
+function [A,B,C,D,x0]=pomoesp(u,y,s,n)
 
-% Function INPUT
+ % Instructions:
+ % Implement your subspace ID method here.
+ % Use the following function inputs and outputs.
+ % Function INPUT 
 % u         system input (matrix of size N x m)
-% y         system output (matrix of size N x l)
-% s         block size (scalar)
+ % y         system output (matrix of size N x l)
+ % s         block size (scalar)
+ % output
+ % A         System matrix A (matrix of size n x n)
+ % B         System matrix B (matrix of size n x m)
+ % C         System matrix C (matrix of size l x n)
+ % D         System matrix D (matrix of size l x m)
+ % x0        Initial state (vector of size n x one)
 
-% Function OUTPUT
-% A         System matrix A (matrix of size n x n)
-% B         System matrix B (matrix of size n x m)
-% C         System matrix C (matrix of size l x n)
-% D         System matrix D (matrix of size l x m)
-% x0        Initial state (vector of size n x one)
+N_u = length(u);
+N_y = length(y);
+U_p = zeros(s, N_u - 2 * s + 1); 
+U_f = zeros(s, N_u - 2 * s + 1); 
+Y_p = zeros(s, N_y - 2 * s + 1); 
+Y_f = zeros(s, N_y - 2 * s + 1); 
 
-N = length(u_train);
-l = size(y_train,2);
-m = size(u_train,2); %not implemented yet, now only for SI systems
-
-y_train_tr = train.';
-y_train = y_train_tr(:); % vectorize the outputs
-
-U_hankelPast = zeros(s, N-2*s); 
-Y_hankelPast = zeros(s,N-2*s); 
-U_hankelFuture = zeros(s,N-2*s);
-Y_hankelFuture = zeros(s,N-2*s); 
-
-for i = 1:(N-2*s+1)
-    U_hankelP(:, i) = u_train(i:(i + s- 1)); 
-    Y_hankelP(:, i) = y_train(i:(i + s- 1)); 
-    U_hankelF(:, i) = u_train((i+s):(i + s*2 - 1)); 
-    Y_hankelF(:, i) = y_train((i+s):(i + s*2 - 1));
+for i = 1:(N_u - 2 * s + 1)
+    U_p(:, i) = u(i:i+s-1);
+    Y_p(:, i) = y(i:i+s-1);
 end
 
-U_hankel = [U_hankelP; U_hankelF]; 
-Y_hankel = [Y_hankelP; Y_hankelF];
+% Future input/output
+U_f(:, i) = u(i+s:i+2*s-1);
+Y_f(:, i) = y(i+s:i+2*s-1);
+Z = [U_p; Y_p]; 
+UFYZ = [U_f; Z; Y_f]; 
+[~, Q] = qr(UFYZ', 0); 
+L_act = Q';
+row_start = size(U_f, 1) + size(Z, 1) + 1; 
+col_start = size(U_f, 1) + 1;              
+L_32 = L_act(row_start:end, col_start:col_start + size(Z, 1) - 1);
+singular_values = svd(L_32);
 
-Z = [U_hankelP; Y_hankelP];
-R = (qr([U_hankelF; Z; Y_hankelF]'));
-L = R.';
-L_32 = L(3*s+1:end,s+1:3*s);
-
-[U32,S32,V32]= svd(L_32);
-singular_values = diag(S32);
-
-Z = [U_hankelP; Y_hankelP];
-R = (qr([U_hankelF; Z; Y_hankelF]'));
-L = R.';
-L_32 = L(3*s+1:end,s+1:3*s);
-[U32,S32,V32]= svd(L_32);
-singular_values = diag(S32);
-
-C = U32(1,1:n);
-A = U32(1:s-1,1:n)\U32(2:s,1:n);
-phi_x0 = zeros(length(u_train),n);
-phi_vecB = zeros(length(u_train),n);
-
-for i = 1:N
-    phi_x0(i, :) = C * (A^(i-1));
-    for j = 1:(i-1)
-        phi_vecB(i, :) = phi_vecB(i, :) + kron(u_train(j)', C * (A^(i-1-j))); %
+figure;
+semilogy(singular_values, 'o-'); 
+grid on;
+xlabel('Index');
+ylabel('Singular Value (Log Scale)');
+title('Singular Values of L_{32}');
+[U, S, V] = svd(L_32,'econ');
+C = U(1, 1:n); 
+A = U(1:end - 1, 1:n) \ U(2:end, 1:n);
+[N, m] = size(u); 
+l = 1; 
+Phi = []; 
+Y_vec = []; 
+for k = 1:N
+    CAk = C * (A^(k-1));
+    sum_term = zeros(l, n*m); 
+    for j = 0:(k-1)
+        sum_term = sum_term + kron(u(j+1, :)', C * (A^(k-1-j)));
     end
-    phi_vecD = u_train(:);
+    D_term = kron(u(k, :), eye(l));
+    Phi_k = [CAk, sum_term, D_term];
+    Phi((k-1)*l+1:k*l, :) = Phi_k;
 end
-
-phi = [phi_x0 phi_vecB phi_vecD];
-vec_x0BD = phi\y_train;
-
-x0 = vec_x0BD(1:n); % Initial state x_0
-B = vec_x0BD(n+1:2*n);
-D = vec_x0BD(end); % Direct feedthrough matrix D
+Y_vec = [Y_vec; y(k, :)];
+Phi_m = zeros(N * l, n + n * m + l * m);
+Phi_m(:, 1:n) = Phi(:, 1:n);
+Phi_m(:, n+n*m+1:n+n*m+m) = Phi(:, n+n*m+1:n+n*m+m);
+Phi_m(l+1:N*l, n+1:n+n*m) = Phi(1:l*(N-1), n+1:n+n*m);
+Phi_m(l, n+1:n+n*m) = zeros(l, n*m);
+Phi = Phi_m;
+theta = (Phi' *Phi)\Phi' * Y_vec; 
+x0 = theta(1:n); 
+B = reshape(theta(n+1:end-1), [n, m]);
+D = reshape(theta(end), [l, m]); 
 end

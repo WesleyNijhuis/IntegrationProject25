@@ -1,32 +1,17 @@
 close all; clear; clc;
 
 %% Loading acquired data
-training_data_y = cell(1,2);
-training_data_u = cell(1,2);
-
-%training set 2: square sweep
-load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
-load('../Data/Squaresweep 1 theta.mat');   % loading theta's
-load('../Data/Squaresweep 1 input.mat');   % loading inputs
-alpha = alpha(:,2);
-theta = theta(:,2);
-
-data_end = 8000;
-data_begin = 1;
-ymeas = [alpha(data_begin:data_end) - mean(alpha), theta(data_begin:data_end) - mean(theta)];
-uin = u(data_begin:data_end,2);     
-
-training_data_y{2} = ymeas;
-training_data_u{2} = uin;
+training_data_y = cell(1,1);
+training_data_u = cell(1,1);
 
 %training set 1: sweep
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
+load('../Data/Sweep high f 1 alpha.mat');   % loading alpha's
+load('../Data/Sweep high f 1 theta.mat');   % loading theta's
+load('../Data/Sweep high f 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 8000;
+data_end = 80000;
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end) - mean(alpha), theta(data_begin:data_end) - mean(theta)];
 uin = u(data_begin:data_end,2);     
@@ -34,10 +19,10 @@ uin = u(data_begin:data_end,2);
 training_data_y{1} = ymeas;
 training_data_u{1} = uin;
 
-dt = 0.01;
+dt = 0.001;
 
 %% Singular values
- s = 20;
+ s = 100;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
  [U,S,V] = svd(y_hank, 'econ');
  sing_vals = diag(S);
@@ -87,12 +72,10 @@ opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'zero';
 %opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
+opt.N4Weight = 'MOESP';
 opt.EnforceStability = true;
 opt.Advanced.DDC = 'on';
-
-[Ap,Bp,Cp,Dp,x0p] = pomoesp(uin,ymeas,s,n); % only does in on the last training set loaded
-
-sys_init2 = idss(Ap,Bp,Cp,Dp);
+sys_init2 = n4sid(training_data, init_sys,opt);
 sys_init2.Ts = 0;
 
 opt.Regularization.Lambda = 1e-12;
@@ -368,76 +351,3 @@ t_test = 0:0.01:120;
 utest = 0.005 * chirp(t_test,0.1,120,5);
 lsim(sys,utest,t_test)
 legend('structured system response')
-
-%% PO MOESP ALGORITHM
-function [A,B,C,D,x0]=pomoesp(u_train,y_train,s,n)
-
-% Function INPUT
-% u         system input (matrix of size N x m)
-% y         system output (matrix of size N x l)
-% s         block size (scalar)
-
-% Function OUTPUT
-% A         System matrix A (matrix of size n x n)
-% B         System matrix B (matrix of size n x m)
-% C         System matrix C (matrix of size l x n)
-% D         System matrix D (matrix of size l x m)
-% x0        Initial state (vector of size n x one)
-
-N = length(u_train);
-l = size(y_train,2);
-m = size(u_train,2); %not implemented yet, now only for SI systems
-
-y_train_tr = train.';
-y_train = y_train_tr(:); % vectorize the outputs
-
-U_hankelPast = zeros(s, N-2*s); 
-Y_hankelPast = zeros(s,N-2*s); 
-U_hankelFuture = zeros(s,N-2*s);
-Y_hankelFuture = zeros(s,N-2*s); 
-
-for i = 1:(N-2*s+1)
-    U_hankelP(:, i) = u_train(i:(i + s- 1)); 
-    Y_hankelP(:, i) = y_train(i:(i + s- 1)); 
-    U_hankelF(:, i) = u_train((i+s):(i + s*2 - 1)); 
-    Y_hankelF(:, i) = y_train((i+s):(i + s*2 - 1));
-end
-
-U_hankel = [U_hankelP; U_hankelF]; 
-Y_hankel = [Y_hankelP; Y_hankelF];
-
-Z = [U_hankelP; Y_hankelP];
-R = (qr([U_hankelF; Z; Y_hankelF]'));
-L = R.';
-L_32 = L(3*s+1:end,s+1:3*s);
-
-[U32,S32,V32]= svd(L_32);
-singular_values = diag(S32);
-
-Z = [U_hankelP; Y_hankelP];
-R = (qr([U_hankelF; Z; Y_hankelF]'));
-L = R.';
-L_32 = L(3*s+1:end,s+1:3*s);
-[U32,S32,V32]= svd(L_32);
-singular_values = diag(S32);
-
-C = U32(1,1:n);
-A = U32(1:s-1,1:n)\U32(2:s,1:n);
-phi_x0 = zeros(length(u_train),n);
-phi_vecB = zeros(length(u_train),n);
-
-for i = 1:N
-    phi_x0(i, :) = C * (A^(i-1));
-    for j = 1:(i-1)
-        phi_vecB(i, :) = phi_vecB(i, :) + kron(u_train(j)', C * (A^(i-1-j))); %
-    end
-    phi_vecD = u_train(:);
-end
-
-phi = [phi_x0 phi_vecB phi_vecD];
-vec_x0BD = phi\y_train;
-
-x0 = vec_x0BD(1:n); % Initial state x_0
-B = vec_x0BD(n+1:2*n);
-D = vec_x0BD(end); % Direct feedthrough matrix D
-end
