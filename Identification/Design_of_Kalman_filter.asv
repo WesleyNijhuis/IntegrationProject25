@@ -51,20 +51,6 @@ t = 0:dt:(data_end - data_begin)*dt;
  xlabel('Value index')
  ylabel('Singular value')
 
-%% Initial guess can be entered in the function theta2matrices!
-% function params = initialguess(mp,Lr,mp,Lp,Rm,kt,km,Jm)
-% J1=Jr
-% p1 = (g*mp^2*(1/4)*Lp^2*Lr)/()
-% 
-% theta_init(0.095,0.085,)
-%% Splitting into training/validation set
-%TODO: in our case the training set and validation cant be split as we're
-%doing a frequency sweep
-% f_t = 0.07;                 % fraction of data dedicated to training
-% ut = u(1:round(end*f_t));            % input for train-set
-% uv = u(round(end*f_t)+1:end);          % input for validation-set
-% yt = ymeas(1:round2even(end*f_t));        % output for train-set
-% yv = ymeas(round2even(end*f_t)+1:end);      % output for validation-set
 %% Run Algorithm
 
 % Testing different sizes
@@ -73,9 +59,6 @@ A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
 D0 = zeros(2,1);
-
-
-% BIG TODO: CHANGE THE SS TO DISCRETIZED, DIFFERENT STRUCTURE?
 
 % PEM DT
 %K = zeros(4,1); % no kalman observer for now: add later
@@ -162,91 +145,13 @@ validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys, struct_sys)
 
-% %% (CONTINUOUS VERSION) - Optimal LQR syntesis using genetic algorithm
-% close all
-% 
-% function [u_max, overshoot,settling_time, rise_time, f_fp] = results(system,K)
-% % K is the resulting stabilizing feedbackgain from ARE
-% % system is the uncontrolled system of interest
-% 
-% system.A = system.A - system.B*K; % A-> Ak
-% 
-% DC_gain = dcgain(system); 
-% system.B = system.B / DC_gain(1); % xdot = Ak x + BG r 
-% 
-% info = stepinfo(system);
-% settling_time = [info.TransientTime].';
-% overshoot = [info.Overshoot].' + [info.Undershoot].';
-% rise_time = [info.RiseTime].';
-% [~,~,x] = step(system);
-% u_max = max(abs(1/DC_gain(1) - K*x.')); % step (1*G=1/DC_gain) + control inputs (Kx)
-% f_fp = max(abs(pole(system)));
-% end
-% 
-% function f = evaluate(W, system,V,n)
-% % W is a 1x3 vector of weights
-% % V = [q1 q2 ... r]
-% Q = diag(V(1:n));
-% R = 1;
-% [~, ~, K] = care(system.A, system.B, Q, R);
-% 
-% [u_max, overshoot,settling_time, rise_time,~] = results(system,K);
-% %penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
-% penalty = 1e6*max(0, u_max - 0.8)^4;
-% 
-% f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + penalty;
-% end
-% 
-% % LQR optimization
-% W = [1e-1,1e1,1,1e-1,1,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole}
-% lb = zeros(1,n);
-% ub = [];     
-% V = optimvar('V',1,n,'LowerBound',0);
-% evaluateFcn = @(V) evaluate(W,struct_sys,V,n);
-% options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
-%     true, "PopulationSize", 100, "EliteCount", 10,'PlotFcn', @gaplotbestf, ...
-%     Display = "iter");
-% [sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options);
-% 
-% Q = diag(sol(1:n));
-% R = 1;
-% [~,~,Kstar] = care(struct_sys.A,struct_sys.B,Q,R)
-% 
-% struct_sys
-% olqsys = struct_sys;
-% olqsys.A = struct_sys.A - struct_sys.B*Kstar;
-% DC_gain = dcgain(olqsys);
-% olqsys.B = olqsys.B / DC_gain(1);
-% 
-% figure()
-% step(olqsys)
-% grid on
-% 
-% figure()
-% pzplot(olqsys)
-% grid on
-
-%% Turning the pendulum upside down
-
-As = struct_sys.A;
-As(3,4) = -As(3,4);
-As(4,2) = -As(4,2);
-As(4,3) = -As(4,3);
-
-struct_sys.A = As;
-
-Bs = struct_sys.B;
-Bs(4,1) = -Bs(4,1);
-
-struct_sys.B = Bs;
-
-%% ... or keep it downwards
-
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 compare(validation_data,str_discr_sys,struct_sys);
 
 %% Iterative Kalman Filter Design
+close all
+
 u_training = training_data_u{1};
 y_training = training_data_y{1};
 x_0 = [0;0;0;0];
@@ -254,8 +159,8 @@ x_0 = [0;0;0;0];
 y_est = lsim(str_discr_sys, u_training, t,x_0);
 
 % estimate the variance
-R1 = 1e-2 * eye(4);
-R2 = 1e-4 * eye(2);
+R1 = 1e-6 * eye(4); % this is the model uncertainty
+R2 = 1e-10 * eye(2); % this is the measurement uncertainty
 R12 = zeros(4,2);
 
 aug_sys = ss(str_discr_sys.A,[str_discr_sys.B eye(n)],str_discr_sys.C,[str_discr_sys.D zeros(2,4)]);
@@ -266,10 +171,79 @@ aug_sys = ss(str_discr_sys.A,[str_discr_sys.B eye(n)],str_discr_sys.C,[str_discr
 K_sys = Kest;
 
 % test results
-yest = lsim(K_sys, uin,t);
-epsilon = y_training - y_est;
+yest_k = lsim(K_sys, [u_training,y_training], t,x_0);
+epsilon = y_training - yest_k(:,1:2);
 
 var =  epsilon.' * epsilon
+
+figure()
+title('alpha')
+plot(y_training(:,1), 'r:')
+hold on
+plot(yest(:,1), 'b:')
+plot(yest_k(:,1))
+hold off
+legend('y_training','yest','yest_k')
+
+%% (DISCRETE VERSION) - Manual LQG design
+close all
+
+Q = diag([1, 1, 1, 1]);
+R = [0.1*1e4];
+[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
+
+lqsys = str_discr_sys % printing original matrices
+lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
+DC_gain = dcgain(lqsys);
+G = 1/DC_gain(1);
+lqsys.B = G*lqsys.B;
+
+% adding kalman filter (aka augmenting state space)
+aug_inputs = [u_training, y_training];
+A_aug = lqsys.A - L*lqsys.C; %adding the kalman filter to t
+
+figure()
+pzplot(lqsys)
+
+figure()
+step(lqsys)
+grid on
+
+stepinfo(lqsys).TransientTime
+[~,~,x] = step(lqsys);
+
+figure()
+plot(K*x.');
+grid on
+u_max = max(abs(K*x.'));
+
+%% (DISCRETE VERSION) - Manual LQR design
+close all
+
+Q = diag([1, 1, 1, 1]);
+R = [0.1*1e4];
+[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
+
+lqsys = str_discr_sys % printing original matrices
+lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
+DC_gain = dcgain(lqsys);
+G = 1/DC_gain(1);
+lqsys.B = G*lqsys.B;
+
+figure()
+pzplot(lqsys)
+
+figure()
+step(lqsys)
+grid on
+
+stepinfo(lqsys).TransientTime
+[~,~,x] = step(lqsys);
+
+figure()
+plot(K*x.');
+grid on
+u_max = max(abs(K*x.'));
 
 %% (Discrete VERSION) - Optimal LQR syntesis using genetic algorithm
 close all
@@ -339,34 +313,6 @@ pzplot(olqsys)
 grid on
 
 DC_gain(1)
-
-%% (DISCRETE VERSION) - Manual LQR design
-close all
-
-Q = diag([1, 1, 1, 1]);
-R = [0.1*1e4];
-[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
-
-lqsys = str_discr_sys % printing original matrices
-lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
-DC_gain = dcgain(lqsys);
-G = 1/DC_gain(1);
-lqsys.B = G*lqsys.B;
-
-figure()
-pzplot(lqsys)
-
-figure()
-step(lqsys)
-grid on
-
-stepinfo(lqsys).TransientTime
-[~,~,x] = step(lqsys);
-
-figure()
-plot(K*x.');
-grid on
-u_max = max(abs(K*x.'));
 
 %% (DISCRETE VERSION) - pole placement design
 %poles = [0.4,0.45,0.9898 + 0.0037i,0.9898 - 0.0037i,0.5]

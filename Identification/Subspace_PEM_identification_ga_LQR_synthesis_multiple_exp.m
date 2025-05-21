@@ -240,11 +240,15 @@ Bs(4,1) = -Bs(4,1);
 
 struct_sys.B = Bs;
 
+%% ... or keep it downwards
+
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 compare(validation_data,str_discr_sys,struct_sys);
 
 %% Iterative Kalman Filter Design
+close all
+
 u_training = training_data_u{1};
 y_training = training_data_y{1};
 x_0 = [0;0;0;0];
@@ -252,8 +256,8 @@ x_0 = [0;0;0;0];
 y_est = lsim(str_discr_sys, u_training, t,x_0);
 
 % estimate the variance
-R1 = 1e-2 * eye(4);
-R2 = 1e-4 * eye(2);
+R1 = 1e-6 * eye(4); % this is the model uncertainty
+R2 = 1e-10 * eye(2); % this is the measurement uncertainty
 R12 = zeros(4,2);
 
 aug_sys = ss(str_discr_sys.A,[str_discr_sys.B eye(n)],str_discr_sys.C,[str_discr_sys.D zeros(2,4)]);
@@ -261,13 +265,22 @@ aug_sys = ss(str_discr_sys.A,[str_discr_sys.B eye(n)],str_discr_sys.C,[str_discr
 
 % redefine system
 
-K_sys = 
+K_sys = Kest;
 
 % test results
-epsilon = y_training - y_est;
+yest_k = lsim(K_sys, [u_training,y_training], t,x_0);
+epsilon = y_training - yest_k(:,1:2);
 
 var =  epsilon.' * epsilon
 
+figure()
+title('alpha')
+plot(y_training(:,1), ':')
+hold on
+plot(yest(:,1), '--')
+plot(yest_k(:,1))
+hold off
+legend('y_training','yest','yest_k')
 %% (Discrete VERSION) - Optimal LQR syntesis using genetic algorithm
 close all
 
