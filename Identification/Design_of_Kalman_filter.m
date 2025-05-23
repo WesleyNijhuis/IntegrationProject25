@@ -149,7 +149,7 @@ compare(validation_data,sys, struct_sys)
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 compare(validation_data,str_discr_sys,struct_sys);
 
-%% Iterative Kalman Filter Design
+%% Discrete Iterative Kalman Filter Design
 close all
 
 u_training = training_data_u{1};
@@ -159,7 +159,7 @@ x_0 = [0;0;0;0];
 y_est = lsim(str_discr_sys, u_training, t,x_0);
 
 % estimate the variance
-R1 = 1e-6 * eye(4); % this is the model uncertainty
+R1 = 6 * 1e-6 * eye(4); % this is the model uncertainty
 R2 = 1e-10 * eye(2); % this is the measurement uncertainty
 R12 = zeros(4,2);
 
@@ -180,7 +180,7 @@ figure()
 title('alpha')
 plot(y_training(:,1), 'r:')
 hold on
-plot(yest(:,1), 'b:')
+plot(y_est(:,1), 'b:')
 plot(yest_k(:,1))
 hold off
 legend('y_training','yest','yest_k')
@@ -234,7 +234,7 @@ u_max = max(abs(K*x.'));
 close all
 
 Q = diag([1, 1, 1, 1]);
-R = [0.1*1e4];
+R = [1e3];
 [P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
@@ -252,6 +252,34 @@ grid on
 
 stepinfo(lqsys).TransientTime
 [~,~,x] = step(lqsys);
+
+figure()
+plot(K*x.');
+grid on
+u_max = max(abs(K*x.'));
+
+%% (Continuous VERSION) - Manual LQR design
+close all
+
+Q = diag([1, 1, 1, 1]);
+R = [1e3];
+[P, cl_eig, K] = care(struct_sys.A, struct_sys.B, Q, R)
+
+clqsys = struct_sys % printing original matrices
+clqsys.A = struct_sys.A - struct_sys.B*K;
+DC_gain = dcgain(clqsys);
+G = 1/DC_gain(1);
+clqsys.B = G*clqsys.B;
+
+figure()
+pzplot(clqsys)
+
+figure()
+step(clqsys)
+grid on
+
+stepinfo(clqsys).TransientTime
+[~,~,x] = step(clqsys);
 
 figure()
 plot(K*x.');
