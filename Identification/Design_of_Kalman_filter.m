@@ -246,6 +246,8 @@ lqsys.B = G*lqsys.B;
 figure()
 pzplot(lqsys)
 
+% reference tracking performance
+
 figure()
 step(lqsys)
 grid on
@@ -256,7 +258,7 @@ stepinfo(lqsys).TransientTime
 figure()
 plot(K*x.');
 grid on
-u_max = max(abs(K*x.'));
+u_max = max(abs(K*x.')); % control inputs for reference step
 
 %% (Continuous VERSION) - Manual LQR design
 close all
