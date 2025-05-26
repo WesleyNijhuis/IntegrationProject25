@@ -185,12 +185,15 @@ plot(yest_k(:,1))
 hold off
 legend('y_training','yest','yest_k')
 
+%% Discrete augmented kalman filter for disturbance rejection
+
+
 %% (DISCRETE VERSION) - Manual LQGR design
 close all
 
-Q = diag([1, 1e, 0, 0]); 
-R = [1*1e2];
-[P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
+Q = diag([1, 1, 1, 1]);
+R = [0.1*1e4];
+[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
 lqsys.A = str_discr_sys.A - str_discr_sys.B*K;

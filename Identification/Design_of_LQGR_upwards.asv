@@ -145,9 +145,22 @@ validation_data = [ymeas,uin];
 figure
 compare(validation_data,sys, struct_sys)
 
+%% Turning the pendulum upside down
+
+As = struct_sys.A;
+As(3,4) = -As(3,4);
+As(4,2) = -As(4,2);
+As(4,3) = -As(4,3);
+
+struct_sys.A = As;
+
+Bs = struct_sys.B;
+Bs(4,1) = -Bs(4,1);
+
+struct_sys.B = Bs;
+
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
-compare(validation_data,str_discr_sys,struct_sys);
 
 %% Discrete Iterative Kalman Filter Design
 close all
@@ -188,8 +201,8 @@ legend('y_training','yest','yest_k')
 %% (DISCRETE VERSION) - Manual LQGR design
 close all
 
-Q = diag([1, 1e, 0, 0]); 
-R = [1*1e2];
+Q = diag([1e2, 1e2, 0, 0]); 
+R = [5*1e0];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
@@ -215,6 +228,14 @@ y_aug = step(lqgr_sys);
 y_lqr = step(lqsys);
 
 figure()
+plot(y_aug(:,1,1))
+title('step response alpha lqr')
+hold on 
+plot(y_lqr(:,1))
+legend('with kalman','without kalman')
+grid on
+
+figure()
 plot(y_aug(:,2,1))
 title('step response theta lqr')
 hold on 
@@ -227,6 +248,7 @@ stepinfo(lqsys).TransientTime
 
 figure()
 plot(K*x.');
+title('inputs')
 grid on
 u_max = max(abs(K*x.'));
 
