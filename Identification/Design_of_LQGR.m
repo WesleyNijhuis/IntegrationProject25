@@ -21,9 +21,9 @@ uin = uin - mean(uin(data_begin:data_end));
 %training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/Sweep 7 alpha.mat');   % loading alpha's
-load('../Data/Sweep 7 theta.mat');   % loading theta's
-load('../Data/Sweep 7 input.mat');   % loading inputs
+load('../Data/Sweep 8 alpha.mat');   % loading alpha's
+load('../Data/Sweep 8 theta.mat');   % loading theta's
+load('../Data/Sweep 8 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
