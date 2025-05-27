@@ -201,8 +201,8 @@ legend('y_training','yest','yest_k')
 %% (DISCRETE VERSION) - Manual LQGR design
 close all
 
-Q = diag([1, 1, 0, 0]); 
-R = [5*1e-1];
+Q = diag([0, 8*1e1, 0, 0]); 
+R = [5*1e-0];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
@@ -285,9 +285,9 @@ u_max = max(abs(K*x.')); % control inputs for reference step
 %% (Continuous VERSION) - Manual LQR design
 close all
 
-Q = diag([1, 1, 1, 1]);
-R = [1e3];
-[P, cl_eig, K] = care(struct_sys.A, struct_sys.B, Q, R)
+Q = diag([1, 1, 0, 0]);
+R = [1e1];
+[P, K, cl_eig] = icare(struct_sys.A, struct_sys.B, Q, R)
 
 clqsys = struct_sys % printing original matrices
 clqsys.A = struct_sys.A - struct_sys.B*K;
