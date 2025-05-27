@@ -201,8 +201,8 @@ legend('y_training','yest','yest_k')
 %% (DISCRETE VERSION) - Manual LQGR design
 close all
 
-Q = diag([0, 8*1e1, 0, 0]); 
-R = [5*1e-0];
+Q = diag([0, 1e2, 0, 0]); 
+R = [3*1e-0];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
