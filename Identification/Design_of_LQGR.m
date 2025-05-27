@@ -21,9 +21,9 @@ training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
+load('../Data/Sweep 7 alpha.mat');   % loading alpha's
+load('../Data/Sweep 7 theta.mat');   % loading theta's
+load('../Data/Sweep 7 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
