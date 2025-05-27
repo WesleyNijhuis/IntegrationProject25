@@ -21,9 +21,9 @@ uin = uin - mean(uin(data_begin:data_end));
 %training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/Sweep 7 alpha.mat');   % loading alpha's
-load('../Data/Sweep 7 theta.mat');   % loading theta's
-load('../Data/Sweep 7 input.mat');   % loading inputs
+load('../Data/Sweep 8 alpha.mat');   % loading alpha's
+load('../Data/Sweep 8 theta.mat');   % loading theta's
+load('../Data/Sweep 8 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -201,8 +201,8 @@ legend('y_training','yest','yest_k')
 %% (DISCRETE VERSION) - Manual LQGR design
 close all
 
-Q = diag([0, 1e2, 0, 0]); 
-R = [3*1e-0];
+Q = diag([1e-8, 3*1e3, 1e-8, 1e-8]); 
+R = [1e0];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
@@ -285,7 +285,7 @@ u_max = max(abs(K*x.')); % control inputs for reference step
 %% (Continuous VERSION) - Manual LQR design
 close all
 
-Q = diag([1, 1, 0, 0]);
+Q = diag([0, 1e1, 0, 1e1]);
 R = [1e1];
 [P, K, cl_eig] = icare(struct_sys.A, struct_sys.B, Q, R)
 

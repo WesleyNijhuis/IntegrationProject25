@@ -189,7 +189,7 @@ legend('y_training','yest','yest_k')
 close all
 
 Q = diag([1, 5, 0, 0]); 
-R = [1e0];
+R = [1e-1];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices
