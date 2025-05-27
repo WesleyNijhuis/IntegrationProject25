@@ -1,8 +1,8 @@
 close all; clear; clc;
 
 %% Loading acquired data
-training_data_y = cell(1,2);
-training_data_u = cell(1,2);
+training_data_y = cell(1,1);
+training_data_u = cell(1,1);
 
 %training set 2: square sweep
 load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
@@ -17,8 +17,8 @@ ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(da
 uin = u(data_begin:data_end,2);   
 uin = uin - mean(uin(data_begin:data_end));
 
-training_data_y{2} = ymeas;
-training_data_u{2} = uin;
+%training_data_y{2} = ymeas;
+%training_data_u{2} = uin;
 
 %training set 1: sweep
 load('../Data/Sweep 7 alpha.mat');   % loading alpha's
