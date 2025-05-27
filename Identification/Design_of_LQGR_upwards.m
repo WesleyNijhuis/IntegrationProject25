@@ -1,8 +1,8 @@
 close all; clear; clc;
 
 %% Loading acquired data
-training_data_y = cell(1,2);
-training_data_u = cell(1,2);
+training_data_y = cell(1,1);
+training_data_u = cell(1,1);
 
 %training set 2: square sweep
 load('../Data/Squaresweep 1 alpha.mat');   % loading alpha's
@@ -17,13 +17,13 @@ ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(da
 uin = u(data_begin:data_end,2);   
 uin = uin - mean(uin(data_begin:data_end));
 
-training_data_y{2} = ymeas;
-training_data_u{2} = uin;
+%training_data_y{2} = ymeas; ONLY LOADING CHIRP
+%training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/Sweep 6 alpha.mat');   % loading alpha's
-load('../Data/Sweep 6 theta.mat');   % loading theta's
-load('../Data/Sweep 6 input.mat');   % loading inputs
+load('../Data/Sweep 7 alpha.mat');   % loading alpha's
+load('../Data/Sweep 7 theta.mat');   % loading theta's
+load('../Data/Sweep 7 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -202,7 +202,7 @@ legend('y_training','yest','yest_k')
 close all
 
 Q = diag([1, 1, 0, 0]); 
-R = [5*1e-2];
+R = [5*1e-1];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
 lqsys = str_discr_sys % printing original matrices

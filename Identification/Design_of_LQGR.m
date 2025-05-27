@@ -17,7 +17,7 @@ ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(da
 uin = u(data_begin:data_end,2);   
 uin = uin - mean(uin(data_begin:data_end));
 
-%training_data_y{2} = ymeas;
+%training_data_y{2} = ymeas; NOW ONLY LOADING CHIRP
 %training_data_u{2} = uin;
 
 %training set 1: sweep
