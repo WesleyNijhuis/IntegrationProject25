@@ -27,8 +27,8 @@ load('../Data/Sweep 8 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 12000;
-data_begin = 1;
+data_end = 8000;
+data_begin = 3000;
 ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end) - mean(theta(data_begin:data_end))];
 uin = u(data_begin:data_end,2);     
 uin = uin - mean(uin(1:(data_end-data_begin)));
@@ -98,7 +98,7 @@ figure
 impulse(sys, Config)
 eig(sys.A)
 
-res = (lsim(sys, training_data_u{1},t) - training_data_y{1});
+res = lsim(sys, training_data_u{1},t) - training_data_y{1};
 
 figure()
 plot(res)
