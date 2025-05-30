@@ -27,11 +27,10 @@ load('../Data/Sweep 8 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 8000;
-data_begin = 3000;
-ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end) - mean(theta(data_begin:data_end))];
+data_end = 12000;
+data_begin = 1;
+ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
-uin = uin - mean(uin(1:(data_end-data_begin)));
 
 training_data_y{1} = ymeas;
 training_data_u{1} = uin;
@@ -40,7 +39,7 @@ dt = 0.01;
 t = 0:dt:(data_end - data_begin)*dt;
 
 %% Singular values
- s = 60;
+ s = 100;
  y_hank = hankel(ymeas(1:s),ymeas(s:end));
  [U,S,V] = svd(y_hank, 'econ');
  sing_vals = diag(S);
@@ -61,6 +60,9 @@ B0 = ones(n,1);
 C0 = ones(2,n);
 D0 = zeros(2,1);
 
+% check P.E.O.
+%checkpoe(n, training_data_u{1},t,s)
+
 % PEM DT
 %K = zeros(4,1); % no kalman observer for now: add later
 %T_s = 0.01; % sampling time
@@ -72,10 +74,10 @@ training_data = iddata(training_data_y,training_data_u,dt);
 opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
-opt.InitialState = 'estimate';
+opt.InitialState = 'zero';
 %opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.N4Weight = 'MOESP';
-opt.N4Horizon = [30 30 30]; % s = 60, symmetric Yo Yf
+opt.N4Horizon = [s/2 s/2 s/2]; % s = 60, symmetric Yo Yf
 opt.EnforceStability = true;
 opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
@@ -94,16 +96,15 @@ D = sys.D
 sys.x0 = zeros(n,1);
 
 Config = RespConfig(Amplitude=0.01,Delay=2);
-figure
+figure()
 impulse(sys, Config)
+
 eig(sys.A)
 
-res = lsim(sys, training_data_u{1},t) - training_data_y{1};
-
 figure()
-plot(res)
-title('Residuals of fit')
-legend('alpha','theta')
+ropt = residOptions;
+ropt.MaxLag = 100;
+resid(training_data, sys,ropt)
 %% Enforcing structure via state coordinate transformation (T = [C;CA])
 
 T = [sys.C;sys.C*sys.A];
@@ -115,6 +116,8 @@ As = T*sys.A/T;
 semi_struct_sys = ss(As,Bs,Cs,Ds);
 
 %% Conditioning B to be [0;0;*;*]
+close all
+
 corrected_B = semi_struct_sys.B;
 corrected_B(1) = 0;
 corrected_B(2) = 0;
@@ -133,18 +136,17 @@ sys_init3.Structure.D.Free = [0;0];
 
 struct_sys = pem(training_data, sys_init3,opt);
 
+figure()
 impulse(struct_sys)
 
-%% Residuals
+figure()
+resid(training_data, struct_sys,ropt)
 
-res = lsim(struct_sys, training_data_u{1},t) - training_data_y{1};
-
-plot(res)
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep 5 alpha.mat');   % loading alpha's
-load('../Data/Sweep 5 theta.mat');   % loading theta's
-load('../Data/Sweep 5 input.mat');   % loading inputs
+load('../Data/Sweep 7 alpha.mat');   % loading alpha's
+load('../Data/Sweep 7 theta.mat');   % loading theta's
+load('../Data/Sweep 7 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -155,29 +157,41 @@ ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(da
 uin = u(data_begin:data_end,2);     
 
 validation_data = [ymeas,uin];
-figure
+
+figure()
 compare(validation_data,sys, struct_sys)
+
+figure()
+resid(validation_data, struct_sys,ropt)
 
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 compare(validation_data,str_discr_sys,struct_sys);
+
+%% Augment the system to achieve disturbance rejection and zero steady state error
+A_aug = [str_discr_sys.A,str_discr_sys.B;
+        zeros(1,n), 1];
+B_aug = [str_discr_sys.B;0];
+C_aug = [str_discr_sys.C, zeros(2,1)];
+D_aug = str_discr_sys.D;
+sys_aug = ss(A_aug,B_aug,C_aug,D_aug,dt);
 
 %% Discrete Iterative Kalman Filter Design
 close all
 
 u_training = training_data_u{1};
 y_training = training_data_y{1};
-x_0 = [0;0;0;0];
+x_0 = [0;0;0;0;0];
 
-y_est = lsim(str_discr_sys, u_training, t,x_0);
+y_est = lsim(sys_aug, u_training, t,x_0);
 
 % estimate the variance
-R1 = 6 * 1e-6 * eye(4); % this is the model uncertainty
+R1 = blkdiag(6 * 1e-8 * eye(4), 6*1e-10); % this is the model uncertainty
 R2 = 1e-10 * eye(2); % this is the measurement uncertainty
-R12 = zeros(4,2);
+R12 = zeros(5,2);
 
-aug_sys = ss(str_discr_sys.A,[str_discr_sys.B eye(n)],str_discr_sys.C,[str_discr_sys.D zeros(2,4)]);
-[Kest,L,P] = kalman(aug_sys, R1, R2)
+kalman_observer = ss(sys_aug.A,[sys_aug.B eye(n+1)],sys_aug.C,[sys_aug.D zeros(2,5)]);
+[Kest,L,P] = kalman(kalman_observer, R1, R2)
 
 % redefine system
 
@@ -198,80 +212,51 @@ plot(yest_k(:,1))
 hold off
 legend('y_training','yest','yest_k')
 
-%% (DISCRETE VERSION) - Manual LQGR design
+%% (DISCRETE VERSION) - Manual LQ(G)R design
 close all
 
-Q = diag([1, 5, 0, 0]); 
+Q = diag([1, 4, 0, 0]); 
 R = [1e-1];
 [P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
 
-lqsys = str_discr_sys % printing original matrices
-lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
-DC_gain = dcgain(lqsys);
-G = 1/DC_gain(1);
-lqsys.B = G*lqsys.B;
+K_aug = [K, 1]; % Kw = 1 perfectly cancels the disturbance!
+
+% %solve regulation
+% Br = zeros(4,2);
+% Dr = [-1,0;0,0];
+% [Pi,Gamma,Gstar] = SolveReg(str_discr_sys.A,str_discr_sys.B,str_discr_sys.C,str_discr_sys.D,Br,Dr,Kstar)
+
+lqgsys = sys_aug % printing original matrices
+lqgsys.A = sys_aug.A - sys_aug.B*K_aug;
+DC_gain = dcgain(lqgsys); 
+lqgsys.B = lqgsys.B/DC_gain(1);
 
 figure()
-pzplot(lqsys)
-
-
-% adding kalman filter for simulation(aka augmenting state space)
-aug_inputs = [u_training, y_training];
-A_aug = lqsys.A; %  adding the kalman filter to the lqr (this makes it a lqgr)
-B_aug = [lqsys.B L];
-C_aug = [lqsys.C;eye(n)];
-D_aug = [lqsys.D, zeros(2,2); zeros(4,3)];
-
-lqgr_sys = ss(A_aug,B_aug,C_aug,D_aug,dt);
-
-y_aug = step(lqgr_sys);
-y_lqr = step(lqsys);
+pzplot(lqgsys)
 
 figure()
-plot(y_aug(:,2,1))
-title('step response theta lqr')
-hold on 
-plot(y_lqr(:,2))
-legend('with kalman','without kalman')
+step(lqgsys)
+
+x01 = [2;2;1;1;2];
+[y1,~,x1] = lsim(lqgsys,[],t(1:200),x01);
+x02 = [2;2;1;1;0];
+[y2,~,x2] = lsim(lqgsys,[],t(1:200),x02);
+
+figure()
+plot(x1(:,5), 'r')
+hold on
+plot(x2(:,5), 'b--')
+hold off
+legend('disturbed','undisturbed')
 grid on
 
-stepinfo(lqsys).TransientTime
-[~,~,x] = step(lqsys);
+stepinfo(lqgsys).TransientTime
+[~,~,x] = step(lqgsys);
 
 figure()
-plot(K*x.');
+plot(K_aug*x.');
 grid on
-u_max = max(abs(K*x.'));
-
-%% (DISCRETE VERSION) - Manual LQR design
-close all
-
-Q = diag([1, 1, 1, 1]);
-R = [1e3];
-[P, cl_eig, K] = dare(str_discr_sys.A, str_discr_sys.B, Q, R)
-
-lqsys = str_discr_sys % printing original matrices
-lqsys.A = str_discr_sys.A - str_discr_sys.B*K;
-DC_gain = dcgain(lqsys);
-G = 1/DC_gain(1);
-lqsys.B = G*lqsys.B;
-
-figure()
-pzplot(lqsys)
-
-% reference tracking performance
-
-figure()
-step(lqsys)
-grid on
-
-stepinfo(lqsys).TransientTime
-[~,~,x] = step(lqsys);
-
-figure()
-plot(K*x.');
-grid on
-u_max = max(abs(K*x.')); % control inputs for reference step
+u_max = max(abs(K_aug*x.'));
 
 %% (Continuous VERSION) - Manual LQR design
 close all
@@ -327,38 +312,43 @@ function f = evaluate_d(W, system,V,n,dt)
 % V = [q1 q2 ... r]
 Q = diag(V(1:n));
 R = 1;
-[~, ~, K] = dare(system.A, system.B, Q, R);
+[~, K, ~] = idare(system.A, system.B, Q, R);
 
 [u_max, overshoot,settling_time, rise_time, f_fp] = results_d(system,K,dt);
 %penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
-penalty = 1e6*max(0, u_max - 0.8)^4 + 1e6*max(0, f_fp - 18)^4; % restrict the input to 0.8 and the fastest pole to 18 rad/s
+penalty = 1e5*max(0, u_max - 2)^2 + 1e5*max(0, f_fp - 80)^2; % restrict the input to X and the fastest pole to X rad/s
 
 f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + penalty;
 end
 
 % LQR optimization
-W = [1,0,1,0,0,1]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient | DC gain}
+W = [0.01,0,0.001,0,1,0.01]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
 
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
 evaluateFcn = @(V) evaluate_d(W,str_discr_sys,V,n,dt);
-est_max_V = 1e2;
+est_max_V = 1e-2;
 initrange = [0,0,0,0;est_max_V,est_max_V,est_max_V,est_max_V];
 options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
-    true, "PopulationSize", 70, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
+    true, "PopulationSize", 80, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
     MaxGenerations = 500, Display = "iter");
 [sol,val] = ga(evaluateFcn, n, [], [], [], [], lb, ub, [], options);
 
 Q = diag(sol(1:n));
 R = 1;
-[~,~,Kstar] = dare(str_discr_sys.A,str_discr_sys.B,Q,R)
+
+[~,Kstar,~] = idare(str_discr_sys.A,str_discr_sys.B,Q,R)
+
+%solve regulation
+Br = zeros(4,1);
+Dr = [-1;0];
+[Pi,Gamma,Gstar] = SolveReg(str_discr_sys.A,str_discr_sys.B,str_discr_sys.C,str_discr_sys.D,Br,Dr,Kstar)
 
 str_discr_sys
 olqsys = str_discr_sys;
 olqsys.A = str_discr_sys.A - str_discr_sys.B*Kstar;
-DC_gain = dcgain(olqsys);
-olqsys.B = olqsys.B / DC_gain(1);
+olqsys.B = olqsys.B * Gstar;
 
 figure()
 step(olqsys)
@@ -427,3 +417,38 @@ t_test = 0:0.01:120;
 utest = 0.005 * chirp(t_test,0.1,120,5);
 lsim(sys,utest,t_test)
 legend('structured system response')
+
+%% persistancy of excitation rank condition
+function checkpoe(n, inputs,t,s)
+    % this function checks if the persistency of excitation rank condition
+    % is fulfilled
+
+    % inputs: system of interest, inputs used for id, timeline and used
+    % horizon s
+    % inputs is N x m
+    % output: error if condition not fulfilled
+
+    u_hank = hankel(inputs(1:2*s),inputs(2*s:end));
+    
+    r = rank([u_hank]);
+    m = size(inputs,2);
+
+    if r >= n+2*s & s*m > 10*n
+        display('rank condition probably fulfilled, input persistently exciting')
+    else
+        str = "rank condition probably not fulfilled, input not persistently exciting as rank of u_hankel is " + r + " instead of "+(n+2*s);
+        error(str)
+    end
+end
+
+%% Regulator equation solver for alpha tracking r
+function [Pi,Gamma,G] = SolveReg(A,B,Ctilde,Dtilde,Br,Dr,K)
+    M = [eye(size(A,1)) - A,-B;Ctilde-Dtilde*K,zeros(size(Ctilde,1),size(B,2))];
+    N = [Br;Dr];
+
+    sol = M\N;
+    Pi = sol(1:size(A,2),:);
+    Gamma = sol(size(A,2)+1:end,:);
+
+    G = Gamma + K*Pi;
+end
