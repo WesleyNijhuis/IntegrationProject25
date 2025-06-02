@@ -139,8 +139,8 @@ sys_init3.Ts = 0;
 
 sys_init3.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
-                             [1,1,1,1]; %A31 is a torsional factor induced by cable
-                             [1,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
+                             [0,1,1,1]; %A31 is a torsional factor induced by cable
+                             [0,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
 sys_init3.Structure.B.Free = [0;0;1;1];
 sys_init3.Structure.C.Free = zeros(2,4);
 sys_init3.Structure.D.Free = [0;0];
@@ -156,9 +156,9 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep 8 alpha.mat');   % loading alpha's
-load('../Data/Sweep 8 theta.mat');   % loading theta's
-load('../Data/Sweep 8 input.mat');   % loading inputs
+load('../Data/Sweep 2 alpha.mat');   % loading alpha's
+load('../Data/Squaresweep 2 theta.mat');   % loading theta's
+load('../Data/Squaresweep 2 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
