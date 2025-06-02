@@ -5,30 +5,30 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/Squaresweep 3 epsilon0.0023 alpha.mat');   % loading alpha's
-load('../Data/Squaresweep 3 epsilon0.0023 theta.mat');   % loading theta's
-load('../Data/Squaresweep 3 epsilon0.0023 input.mat');   % loading inputs
+load('../Data/prbs 1 alpha.mat');   % loading alpha's
+load('../Data/prbs 1 theta.mat');   % loading theta's
+load('../Data/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 20000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);   
 
 training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/doublesweep 2 epsilon0023 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 2 epsilon0023 theta.mat');   % loading theta's
-load('../Data/doublesweep 2 epsilon0023 input.mat');   % loading inputs
+load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 20000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end) - mean(alpha(:,1)), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
 
 training_data_y{1} = ymeas;
@@ -53,7 +53,7 @@ t = 0:dt:(data_end - data_begin)*dt;
 close all
 
 % Testing different sizes
-n=4;
+n=6;
 A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
@@ -85,7 +85,7 @@ sys_init2.Ts = 0;
 %opt.Regularization.Lambda = 1e-6;
 %opt.Regularization.Nominal = 'zero'; % prefer low entries in matrices for controller implementation and num. stability
 
-sys = sys_init2; % pem(training_data, sys_init2,opt);
+sys = pem(training_data, sys_init2,opt);
 
 disp('Results theta 1, set 1')
 Abar = sys.A
@@ -148,25 +148,17 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/Sweep 8 alpha.mat');   % loading alpha's
-load('../Data/Sweep 8 theta.mat');   % loading theta's
-load('../Data/Sweep 8 input.mat');   % loading inputs
+load('../Data/doublesweep 7 epsilon00242 alpha.mat');   % loading alpha's
+load('../Data/doublesweep 7 epsilon00242 theta.mat');   % loading theta's
+load('../Data/doublesweep 7 epsilon00242 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 8000; %for debugging
+data_end = 5000; %for debugging
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
-
-for i=1:length(uin)
-    if uin(i)>= 0
-        uin(i) =+ 0.0023;
-    else 
-        uin(i) =- 0.0023;
-    end
-end
 
 validation_data = [ymeas,uin];
 
@@ -175,6 +167,19 @@ compare(validation_data,sys, struct_sys)
 
 figure()
 resid(validation_data, struct_sys,ropt)
+%% Turning the pendulum upside down
+
+As = struct_sys.A;
+As(3,4) = -As(3,4);
+As(4,2) = -As(4,2);
+As(4,3) = -As(4,3);
+
+struct_sys.A = As;
+
+Bs = struct_sys.B;
+Bs(4,1) = -Bs(4,1);
+
+struct_sys.B = Bs;
 
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
@@ -223,12 +228,19 @@ plot(yest_k(:,1))
 hold off
 legend('y_training','yest','yest_k')
 
+%% (optional) compute modal form for tuning
+[str_discr_sys,~] = modalreal(str_discr_sys);
+[sys_aug,~] = modalreal(sys_aug);
+
 %% (DISCRETE VERSION) - Manual LQ(G)R design
 close all
 
-Q = diag([0, 10, 0, 0]); 
-R = [1e-1];
-[P, K, cl_eig] = idare(str_discr_sys.A, str_discr_sys.B, Q, R)
+helper_A = sys_aug.A(1:4,1:4);
+helper_B = sys_aug.B(1:4);
+
+Q = diag([0, 0, 0,0]); 
+R = [1];
+[P, K, cl_eig] = idare(helper_A, helper_B, Q, R)
 
 K_aug = [K, 1]; % Kw = 1 perfectly cancels the disturbance!
 
@@ -243,8 +255,10 @@ DC_gain = dcgain(lqgsys);
 lqgsys.B = lqgsys.B/DC_gain(1);
 
 figure()
-step(lqgsys) % note the steady state error in theta
+impulse(lqgsys) % note the steady state error in theta
 
+figure()
+pzplot(lqgsys)
 %%
 figure()
 pzplot(lqgsys)
@@ -328,9 +342,11 @@ system.A = system.A - system.B*K; % A-> Ak
 DC_gain = dcgain(system); 
 system.B = system.B / DC_gain(1); % xdot = Ak x + BG r 
 
-info = stepinfo(system);
+info = stepinfo(system,SettlingTimeThreshold=0.005);
 settling_time = [info.TransientTime].';
 overshoot = [info.Overshoot].' + [info.Undershoot].';
+peak = [info.Peak].';
+overshoot = [overshoot(1); abs(peak(2))];
 rise_time = [info.RiseTime].';
 [~,~,x] = step(system);
 u_max = max(abs(1/DC_gain(1) - K*x.')); % step (1*G=1/DC_gain) + control inputs (Kx)
@@ -346,19 +362,24 @@ R = 1;
 
 [u_max, overshoot,settling_time, rise_time, f_fp] = results_d(system,K,dt);
 %penalty = 1e6 / (1 + exp(-100*(u_max - 0.8)));
-penalty = 1e5*max(0, u_max - 2)^2 + 1e5*max(0, f_fp - 80)^2; % restrict the input to X and the fastest pole to X rad/s
+penalty = 1e5*max(0, u_max - 10)^2 + 1e5*max(0, f_fp - 300)^2; % restrict the input to X and the fastest pole to X rad/s
 
 f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + penalty;
 end
 
 % LQR optimization
-W = [0.01,0,0.001,0,1,0.01]; % {input | alpha overhoot | theta overshoot | alpha ts | theta ts | fastest pole coeficient}
+W = [0.001,0.01,0,0.01,1e4,0.0001]; % {input | alpha overhoot | theta peak | alpha ts | theta ts | fastest pole coeficient}
 
+helper_A = sys_aug.A(1:4,1:4);
+helper_B = sys_aug.B(1:4);
+helper_C = sys_aug.C(:,1:4);
+
+helper_sys = ss(helper_A,helper_B,helper_C,str_discr_sys.D,dt);
 lb = zeros(1,n);
 ub = [];     
 V = optimvar('V',1,n,'LowerBound',0);
 evaluateFcn = @(V) evaluate_d(W,str_discr_sys,V,n,dt);
-est_max_V = 5e-1;
+est_max_V = 1e-0;
 initrange = [0,0,0,0;est_max_V,est_max_V,est_max_V,est_max_V];
 options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
     true, "PopulationSize", 80, "EliteCount", 10, 'InitialPopulationRange',initrange,'PlotFcn', @gaplotbestf, ...
@@ -368,7 +389,7 @@ options = optimoptions('ga','FunctionTolerance',1e-8, "UseParallel", ...
 Q = diag(sol(1:n));
 R = 1;
 
-[~,Kstar,~] = idare(str_discr_sys.A,str_discr_sys.B,Q,R)
+[~,Kstar,~] = idare(helper_A,helper_B,Q,R)
 
 %solve regulation
 Br = zeros(4,1);
@@ -387,6 +408,10 @@ grid on
 
 figure()
 pzplot(olqsys)
+grid on
+
+figure()
+impulse(olqsys)
 grid on
 
 DC_gain(1)
