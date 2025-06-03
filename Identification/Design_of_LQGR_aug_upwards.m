@@ -28,7 +28,7 @@ theta = theta(:,2);
 
 data_end = 20000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
 
 training_data_y{1} = ymeas;
@@ -53,7 +53,7 @@ t = 0:dt:(data_end - data_begin)*dt;
 close all
 
 % Testing different sizes
-n=6;
+n=4;
 A0 = ones(n,n);
 B0 = ones(n,1);
 C0 = ones(2,n);
@@ -69,11 +69,11 @@ init_sys = idss(A0, B0, C0, D0); %x0 is 0
 %init_sys.x0 = x00;
 init_sys.Ts = 0;
 
-training_data = iddata(training_data_y,training_data_u,dt);
+training_data = iddata(training_data_y{2},training_data_u{2},dt);
 opt = ssestOptions('Display','on','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
-opt.InitialState = 'zero';
+opt.InitialState = 'estimate';
 %opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.N4Weight = 'MOESP';
 opt.N4Horizon = [s/2 s/2 s/2]; % s = 60, symmetric Yo Yf
@@ -123,7 +123,7 @@ corrected_B(2) = 0;
 
 Acorr = semi_struct_sys.A;
 
-%Acorr(4,1) = 0;
+Acorr(4,1) = 0;
 %Acorr(3,1) = 0;
 
 sys_init3 = idss(Acorr,corrected_B,semi_struct_sys.C,semi_struct_sys.D);
@@ -132,12 +132,13 @@ sys_init3.Ts = 0;
 sys_init3.Structure.A.Free = [[0,0,0,0];
                              [0,0,0,0];
                              [1,1,1,1]; %A31 is a torsional factor induced by cable
-                             [1,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
+                             [0,1,1,1]]; % only the parameter entries (1 or 'True') can be changed
 sys_init3.Structure.B.Free = [0;0;1;1];
 sys_init3.Structure.C.Free = zeros(2,4);
 sys_init3.Structure.D.Free = [0;0];
 
-
+%opt.Regularization.R = 1e16*eye(10);
+%opt.Regularization.Nominal = 'zero';
 struct_sys = pem(training_data, sys_init3,opt);
 
 figure()
@@ -148,14 +149,14 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/doublesweep 7 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 7 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 7 epsilon00242 input.mat');   % loading inputs
+load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 5000; %for debugging
+data_end = 20000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
@@ -238,8 +239,8 @@ close all
 helper_A = sys_aug.A(1:4,1:4);
 helper_B = sys_aug.B(1:4);
 
-Q = diag([0, 0, 0,0]); 
-R = [1];
+Q = diag([1e1, 1e-1, 1e-3,1e-3]); 
+R = [1e-1];
 [P, K, cl_eig] = idare(helper_A, helper_B, Q, R)
 
 K_aug = [K, 1]; % Kw = 1 perfectly cancels the disturbance!
