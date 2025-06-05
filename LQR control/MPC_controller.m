@@ -5,9 +5,9 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/prbs 1 alpha.mat');   % loading alpha's
-load('../Data/prbs 1 theta.mat');   % loading theta's
-load('../Data/prbs 1 input.mat');   % loading inputs
+load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
+load('../DataExp/prbs 1 theta.mat');   % loading theta's
+load('../DataExp/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -20,9 +20,9 @@ training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -188,8 +188,8 @@ str_discr_sys = c2d(struct_sys,0.01,'zoh');
 %% MPC synthesis
 h=dt;
 
-mpc_A = str_discr_sys.A;
-mpc_B = str_discr_sys.B;
+mpc_A = str_discr_sys.A(1:4,1:4);
+mpc_B = str_discr_sys.B(1:4);
 mpc_C = eye(4);
 mpc_D = zeros(4,1);
 
@@ -204,6 +204,9 @@ MPC1.PredictionHorizon = 40;
 MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
 MPC1.Weights.ManipulatedVariables = 1e-1;
 
+%omitting the build in state estimation
+setEstimator(MPC1, "custom")
+MPC1.Model.Plant = setmpcsignals(MPC1.Model.Plant, 'MO', []);
 % Setting up terminal cost P
-P = ....
-Y.Weight = P;
+%P = ....
+%Y.Weight = P;
