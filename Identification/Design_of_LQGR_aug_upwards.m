@@ -369,7 +369,7 @@ f = W(1)*u_max+[W(2), W(3)]*overshoot+[W(4) W(5)]*settling_time + W(6)*f_fp + pe
 end
 
 % LQR optimization
-W = [1e-3,1e-2,1,1e4,1e2,1e-3]; % {input | alpha overhoot | theta peak | alpha ts | theta ts | fastest pole coeficient}
+W = [1e-5,0,0,1e2,0,1e-5]; % {input | alpha overhoot | theta peak | alpha ts | theta ts | fastest pole coeficient}
 
 helper_A = sys_aug.A(1:4,1:4);
 helper_B = sys_aug.B(1:4);
