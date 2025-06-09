@@ -76,7 +76,7 @@ opt.SearchOptions.Tolerance = 1e-12;
 opt.InitialState = 'estimate';
 %opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.N4Weight = 'MOESP';
-opt.N4Horizon = [s/2 s/2 s/2]; % s = 60, symmetric Yo Yf
+opt.N4Horizon = [s/2 s/2 s/2]; % This sets Moesp to PO-MOESP
 opt.EnforceStability = true;
 opt.Advanced.DDC = 'on';
 sys_init2 = n4sid(training_data, init_sys,opt);
@@ -185,15 +185,143 @@ struct_sys.B = Bs;
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 
-%% MPC synthesis
+%% Designing the LQR
+
+%% Computing the terminal set with mpt3
+close all;
+
+Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
+R_mpc = 1e-1;
+
+[P,K,~] = idare(str_discr_sys.A,str_discr_sys.B,Q_mpc,R_mpc);
+
+% mptopt('qpsolver', 'quadprog');
+% mptopt('lpsolver','LCP')
+
+mpt3_model = ss(str_discr_sys.A,str_discr_sys.B,str_discr_sys.C,str_discr_sys.D,dt);
+mpc_mpt3 = LTISystem(mpt3_model);
+mpc_mpt3.x.min = [-pi/2; -pi/4; -inf; -inf];
+mpc_mpt3.x.max = [pi/2; pi/4; inf; inf];
+mpc_mpt3.u.min = -1;
+mpc_mpt3.u.max = 1;
+mpc_mpt3.x.with('reference');
+mpc_mpt3.x.reference = 'free';
+
+mpc_mpt3.x.penalty = QuadFunction(Q_mpc);
+mpc_mpt3.u.penalty = QuadFunction(R_mpc);
+Tset = mpc_mpt3.LQRSet();
+PN = mpc_mpt3.LQRPenalty;
+mpc_mpt3.x.with('terminalSet');
+mpc_mpt3.x.terminalSet = Tset;
+mpc_mpt3.x.with('terminalPenalty');
+mpc_mpt3.x.terminalPenalty = QuadFunction(P);
+
+mpt_horizon = 40;
+ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
+
+reference = [1;0;0;0];
+
+loop = ClosedLoop(ctrl, mpc_mpt3);
+x0 = [0; 0; 0; 0];
+Nsim = mpt_horizon;
+data = loop.simulate(x0, Nsim, 'x.reference', reference);
+
+u_c = [1;-1];
+y_c = [pi/2;-pi/2];
+
+figure()
+subplot(2,1,1)
+plot(1:Nsim, data.Y);
+hold on;
+plot(1:Nsim, y_c*ones(1, Nsim), 'k--')
+hold off;
+title('outputs')
+legend('alpha','theta')
+grid on
+subplot(2,1,2)
+plot(1:Nsim, data.U);
+hold on;
+plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
+hold off
+title('inputs')
+grid on
+
+H = Tset.A;
+gamma = Tset.b;
+
+% Export to a (faster) MPC controller
+%ctrl.optimizer.toMatlab('mycontroller.m', 'primal', 'obj');
+
+% precompile optimizer and using YALMIP directly for speed
+optim = ctrl.toYALMIP();
+constr = optim.constraints;
+obj    = optim.objective;
+vars   = optim.variables;
+params = [vars.x(:,1); vars.filters.x.reference];
+decision = vars.u;
+fast_opt = optimizer(constr, obj, sdpsettings('solver','quadprog'), params, decision);
+
+function u0 = get_mu(fast_opt,x,reference)
+    u0 = fast_opt{[x; reference]};
+end
+
+% function u0 = get_mu(ctrl,x,reference)
+%     u0 = ctrl.evaluate(x,'x.reference', reference);
+% end
+
+% function u0 = get_mu(optim,x,reference)
+%     u0 = optim{[x; reference]};
+% end
+%% TEST
+% tic
+% mu = get_mpc_u(loop,x0,mpt_horizon,reference)
+% toc
+
+
+% profile on;
+% mu = get_mu(ctrl,x0,reference)
+% profile off;
+% profile viewer;
+
+tic
+for i=1:1
+    mu = get_mu(fast_opt,x0,reference); % fast enough!
+end
+toc
+
+figure()
+plot(mu)
+hold on
+plot(data.U, '--')
+hold off
+legend('fast mpc','original mpc')
+grid on
+
+%% Testing fast mpc
+x_his = zeros(4,Nsim);
+y_his = zeros(2,Nsim);
+u_his = zeros(1,Nsim);
+
+x_prev=x0;
+for i=1:Nsim
+    mu = get_mu(fast_opt,x_prev,reference);
+    x_next = mpt3_model.A * x_prev + mpt3_model.B*mu;
+    x_his(:,i) = x_prev;
+    u_his(i) = mu(1);
+    y_his(:,i) = str_discr_sys.C * x_prev;
+
+    x_prev = x_next;
+end
+%% MPC() synthesis
 h=dt;
 
-mpc_A = str_discr_sys.A;
-mpc_B = str_discr_sys.B;
+mpc_A = str_discr_sys.A(1:4,1:4);
+mpc_B = str_discr_sys.B(1:4);
 mpc_C = eye(4);
-mpc_D = str_discr_sys.D;
+mpc_D = zeros(4,1);
 
-mpc_model = ss(mpc_A,mpc_B,mpc_C,mpc_D,dt)
+mpc_model = ss(mpc_A,mpc_B,mpc_C,mpc_D,dt);
+
 
 % creating mpcobject
 MPC1 = mpc(mpc_model,dt);
@@ -203,5 +331,60 @@ MPC1.PredictionHorizon = 40;
 MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
 MPC1.Weights.ManipulatedVariables = 1e-1;
 
-% Setting up terminal cost P
-Y = structure()
+% Setting the terminal set
+setterminal(MPC1, struct('A', H, 'b', gamma));
+
+% Setting the terminal cost
+P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+MPC1.TerminalWeight = P;
+
+%% Setting up terminal set AND terminal cost by expanding output vector
+
+Q_mpc = diag(MPC1.Weights.OutputVariables);
+R_mpc = MPC1.Weights.ManipulatedVariables;
+
+P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+
+Qc = chol(P, 'lower'); %this will eventually enforce the terminal cost
+mpc_C_aug = [mpc_model.C;Qc];
+mpc_D_aug = [mpc_model.D,zeros(size(mpc_model.D,1), 1)];
+mpc_model_aug = ss(mpc_model.A,mpc_model.B,mpc_C_aug,mpc_D_aug,dt);
+
+% creating mpcobject
+MPC_aug = mpc(mpc_model_aug,dt); %is matlab discretizing this again automatically?
+
+% setting Q,R and N
+MPC1.PredictionHorizon = 40;
+MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
+MPC1.Weights.ManipulatedVariables = 1e-1;
+Y = struct('Weight', P); % Vf --> x^T P x 
+U = struct();
+
+Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
+setterminal(mpcobj, Y, []);
+
+%% Setting up terminal cost P (x^T (beta*P) x < alpha) by expanding output vector
+% beta = 1e2;
+% 
+% Q_mpc = diag(MPC1.Weights.OutputVariables);
+% R_mpc = MPC1.Weights.ManipulatedVariables;
+% 
+% P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+% 
+% Qc = chol(P, 'lower'); %this will eventually enforce the terminal cost
+% mpc_C_aug = [mpc_model.C;Qc];
+% mpc_D_aug = [mpc_model.D,zeros(size(mpc_model.D,1), 1)];
+% mpc_model_aug = ss(mpc_model.A,mpc_model.B,mpc_C_aug,mpc_D_aug,dt);
+% 
+% % creating mpcobject
+% MPC_aug = mpc(mpc_model_aug,dt); %is matlab discretizing this again automatically?
+% 
+% % setting Q,R and N
+% MPC1.PredictionHorizon = 40;
+% MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
+% MPC1.Weights.ManipulatedVariables = 1e-1;
+% Y = struct('Weight', beta*P); % Vf --> beta*Vf = x^T (beta * P) x 
+% U = struct();
+% 
+% Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
+% setterminal(mpcobj, Y, []);
