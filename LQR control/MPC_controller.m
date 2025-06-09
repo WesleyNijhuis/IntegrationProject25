@@ -5,9 +5,9 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/prbs 1 alpha.mat');   % loading alpha's
-load('../Data/prbs 1 theta.mat');   % loading theta's
-load('../Data/prbs 1 input.mat');   % loading inputs
+load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
+load('../DataExp/prbs 1 theta.mat');   % loading theta's
+load('../DataExp/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -20,9 +20,9 @@ training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -185,10 +185,13 @@ struct_sys.B = Bs;
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 
-%% Designing the LQR
-
 %% Computing the terminal set with mpt3
 close all;
+
+mpc_A = str_discr_sys.A(1:4,1:4);
+mpc_B = str_discr_sys.B(1:4);
+mpc_C = eye(4);
+mpc_D = zeros(4,1);
 
 Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
 R_mpc = 1e-1;
@@ -398,3 +401,9 @@ grid on
 % 
 % Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
 % setterminal(mpcobj, Y, []);
+% omitting the build in state estimation
+% setEstimator(MPC1, "custom")
+% MPC1.Model.Plant = setmpcsignals(MPC1.Model.Plant, 'MO', []);
+% Setting up terminal cost P
+%P = ....
+%Y.Weight = P;
