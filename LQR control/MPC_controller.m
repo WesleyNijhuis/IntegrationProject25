@@ -5,9 +5,9 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
-load('../DataExp/prbs 1 theta.mat');   % loading theta's
-load('../DataExp/prbs 1 input.mat');   % loading inputs
+load('../Data/prbs 1 alpha.mat');   % loading alpha's
+load('../Data/prbs 1 theta.mat');   % loading theta's
+load('../Data/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -20,9 +20,9 @@ training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
