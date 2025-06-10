@@ -205,8 +205,8 @@ mpt3_model = ss(str_discr_sys.A,str_discr_sys.B,str_discr_sys.C,str_discr_sys.D,
 mpc_mpt3 = LTISystem(mpt3_model);
 mpc_mpt3.x.min = [-pi/2; -pi/4; -inf; -inf];
 mpc_mpt3.x.max = [pi/2; pi/4; inf; inf];
-mpc_mpt3.u.min = -1;
-mpc_mpt3.u.max = 1;
+mpc_mpt3.u.min = -10;
+mpc_mpt3.u.max = 10;
 mpc_mpt3.x.with('reference');
 mpc_mpt3.x.reference = 'free';
 
@@ -225,7 +225,7 @@ ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 reference = [1;0;0;0];
 
 loop = ClosedLoop(ctrl, mpc_mpt3);
-x0 = [0; 0; 0; 0];
+x0 = [-1; 0; 0; 0];
 Nsim = mpt_horizon;
 data = loop.simulate(x0, Nsim, 'x.reference', reference);
 
@@ -316,12 +316,19 @@ for i=1:Nsim
     x_prev = x_next;
 end
 
+lqr = mpt3_model;
+lqr.A = mpt3_model.A - mpt3_model.B * K;
+DC_gain = dcgain(lqr);
+lqr.B = mpt3_model.B / DC_gain(1);
+y_lqr = step(lqr);
+
 figure()
 plot(1:Nsim,y_his)
 hold on
 plot(1:Nsim,data.Y, '--')
+plot(1:Nsim, y_lqr(1:40,:).')
 hold off
-legend('fast mpc alpha','fast mpc theta','original mpc alpha','original mpc theta')
+legend('fast mpc alpha','fast mpc theta','original mpc alpha','original mpc theta', 'lqr alpha','lqr theta')
 grid on
 
 

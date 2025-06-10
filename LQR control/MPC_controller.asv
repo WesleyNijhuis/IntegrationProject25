@@ -185,10 +185,13 @@ struct_sys.B = Bs;
 %% Discretize for implementation
 str_discr_sys = c2d(struct_sys,0.01,'zoh');
 
-%% Designing the LQR
-
 %% Computing the terminal set with mpt3
 close all;
+
+mpc_A = str_discr_sys.A(1:4,1:4);
+mpc_B = str_discr_sys.B(1:4);
+mpc_C = eye(4);
+mpc_D = zeros(4,1);
 
 Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
 R_mpc = 1e-1;
@@ -284,7 +287,7 @@ end
 % profile viewer;
 
 tic
-for i=1:1
+for i=1:100
     mu = get_mu(fast_opt,x0,reference); % fast enough!
 end
 toc
@@ -305,63 +308,80 @@ u_his = zeros(1,Nsim);
 x_prev=x0;
 for i=1:Nsim
     mu = get_mu(fast_opt,x_prev,reference);
-    x_next = mpt3_model.A * x_prev + mpt3_model.B*mu;
+    x_next = mpt3_model.A * x_prev + mpt3_model.B*mu(1);
     x_his(:,i) = x_prev;
     u_his(i) = mu(1);
     y_his(:,i) = str_discr_sys.C * x_prev;
 
     x_prev = x_next;
 end
+
+lqr = mpt3_model;
+lqr.A = mpt3_model.A - mpt3_model.B * K;
+DC_gain = dcgain(lqr);
+lqr.B = mpt3_model.B / DC_gain(1);
+y_lqr = step(lqr);
+
+figure()
+plot(1:Nsim,y_his)
+hold on
+plot(1:Nsim,data.Y, '--')
+plot(1:Nsim, y_lqr(1:40).')
+hold off
+legend('fast mpc alpha','fast mpc theta','original mpc alpha','original mpc theta')
+grid on
+
+
 %% MPC() synthesis
-h=dt;
-
-mpc_A = str_discr_sys.A(1:4,1:4);
-mpc_B = str_discr_sys.B(1:4);
-mpc_C = eye(4);
-mpc_D = zeros(4,1);
-
-mpc_model = ss(mpc_A,mpc_B,mpc_C,mpc_D,dt);
-
-
-% creating mpcobject
-MPC1 = mpc(mpc_model,dt);
-
-% setting Q,R and N
-MPC1.PredictionHorizon = 40;
-MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
-MPC1.Weights.ManipulatedVariables = 1e-1;
-
-% Setting the terminal set
-setterminal(MPC1, struct('A', H, 'b', gamma));
-
-% Setting the terminal cost
-P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
-MPC1.TerminalWeight = P;
+% h=dt;
+% 
+% mpc_A = str_discr_sys.A(1:4,1:4);
+% mpc_B = str_discr_sys.B(1:4);
+% mpc_C = eye(4);
+% mpc_D = zeros(4,1);
+% 
+% mpc_model = ss(mpc_A,mpc_B,mpc_C,mpc_D,dt);
+% 
+% 
+% % creating mpcobject
+% MPC1 = mpc(mpc_model,dt);
+% 
+% % setting Q,R and N
+% MPC1.PredictionHorizon = 40;
+% MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
+% MPC1.Weights.ManipulatedVariables = 1e-1;
+% 
+% % Setting the terminal set
+% setterminal(MPC1, struct('A', H, 'b', gamma));
+% 
+% % Setting the terminal cost
+% P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+% MPC1.TerminalWeight = P;
 
 %% Setting up terminal set AND terminal cost by expanding output vector
 
-Q_mpc = diag(MPC1.Weights.OutputVariables);
-R_mpc = MPC1.Weights.ManipulatedVariables;
-
-P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
-
-Qc = chol(P, 'lower'); %this will eventually enforce the terminal cost
-mpc_C_aug = [mpc_model.C;Qc];
-mpc_D_aug = [mpc_model.D,zeros(size(mpc_model.D,1), 1)];
-mpc_model_aug = ss(mpc_model.A,mpc_model.B,mpc_C_aug,mpc_D_aug,dt);
-
-% creating mpcobject
-MPC_aug = mpc(mpc_model_aug,dt); %is matlab discretizing this again automatically?
-
-% setting Q,R and N
-MPC1.PredictionHorizon = 40;
-MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
-MPC1.Weights.ManipulatedVariables = 1e-1;
-Y = struct('Weight', P); % Vf --> x^T P x 
-U = struct();
-
-Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
-setterminal(mpcobj, Y, []);
+% Q_mpc = diag(MPC1.Weights.OutputVariables);
+% R_mpc = MPC1.Weights.ManipulatedVariables;
+% 
+% P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+% 
+% Qc = chol(P, 'lower'); %this will eventually enforce the terminal cost
+% mpc_C_aug = [mpc_model.C;Qc];
+% mpc_D_aug = [mpc_model.D,zeros(size(mpc_model.D,1), 1)];
+% mpc_model_aug = ss(mpc_model.A,mpc_model.B,mpc_C_aug,mpc_D_aug,dt);
+% 
+% % creating mpcobject
+% MPC_aug = mpc(mpc_model_aug,dt); %is matlab discretizing this again automatically?
+% 
+% % setting Q,R and N
+% MPC1.PredictionHorizon = 40;
+% MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
+% MPC1.Weights.ManipulatedVariables = 1e-1;
+% Y = struct('Weight', P); % Vf --> x^T P x 
+% U = struct();
+% 
+% Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
+% setterminal(mpcobj, Y, []);
 
 %% Setting up terminal cost P (x^T (beta*P) x < alpha) by expanding output vector
 % beta = 1e2;
@@ -388,3 +408,9 @@ setterminal(mpcobj, Y, []);
 % 
 % Y = struct('Weight', [zeros(1, 4), ones(1, 4)], 'Min', [], 'Max', []);
 % setterminal(mpcobj, Y, []);
+% omitting the build in state estimation
+% setEstimator(MPC1, "custom")
+% MPC1.Model.Plant = setmpcsignals(MPC1.Model.Plant, 'MO', []);
+% Setting up terminal cost P
+%P = ....
+%Y.Weight = P;
