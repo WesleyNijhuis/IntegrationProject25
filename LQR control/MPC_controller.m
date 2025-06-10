@@ -287,7 +287,7 @@ end
 % profile viewer;
 
 tic
-for i=1:1
+for i=1:100
     mu = get_mu(fast_opt,x0,reference); % fast enough!
 end
 toc
