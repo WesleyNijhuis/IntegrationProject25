@@ -27,7 +27,7 @@ function setup(block)
 end
 
 function Output(block)
-    %tic
+    tic
     % Get the input data (states and reference)
     states = block.InputPort(1).Data;     % Current states
     reference = block.InputPort(2).Data;  % Reference signal
@@ -46,5 +46,5 @@ function Output(block)
 
     % Set the control output
     block.OutputPort(1).Data = u0;
-    %toc
+    toc
 end

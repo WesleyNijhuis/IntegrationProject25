@@ -5,24 +5,25 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/prbs 1 alpha.mat');   % loading alpha's
-load('../Data/prbs 1 theta.mat');   % loading theta's
-load('../Data/prbs 1 input.mat');   % loading inputs
+load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
+load('../DataExp/prbs 1 theta.mat');   % loading theta's
+load('../DataExp/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 20000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
+%ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
+ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);   
 
 training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -36,6 +37,9 @@ training_data_u{1} = uin;
 
 dt = 0.01;
 t = 0:dt:(data_end - data_begin)*dt;
+%% Setting system parameters for simulink
+h=0.01
+epsilon=0.00242
 
 %% Singular values
  s = 100;
@@ -94,9 +98,9 @@ Cbar = sys.C
 D = sys.D
 sys.x0 = zeros(n,1);
 
-Config = RespConfig(Amplitude=0.01,Delay=2);
+%Config = RespConfig(Amplitude=0.01,Delay=2);
 figure()
-impulse(sys, Config)
+impulse(sys)
 
 eig(sys.A)
 
@@ -149,14 +153,14 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/validationsweep alpha.mat');   % loading alpha's
+load('../DataExp/validationsweep theta.mat');   % loading theta's
+load('../DataExp/validationsweep input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 20000; %for debugging
+data_end = 5000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
@@ -219,35 +223,35 @@ mpc_mpt3.x.terminalSet = Tset;
 mpc_mpt3.x.with('terminalPenalty');
 mpc_mpt3.x.terminalPenalty = QuadFunction(P);
 
-mpt_horizon = 30;
+mpt_horizon = 25;
 ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 
 reference = [1;0;0;0];
 
 loop = ClosedLoop(ctrl, mpc_mpt3);
 x0 = [-1; 0; 0; 0];
-Nsim = round(mpt_horizon*1.5);
+Nsim = round(mpt_horizon*2);
 data = loop.simulate(x0, Nsim, 'x.reference', reference);
 
 u_c = [1;-1];
 y_c = [pi/2;-pi/2];
 
-% figure()
-% subplot(2,1,1)
-% plot(1:Nsim, data.Y);
-% hold on;
-% plot(1:Nsim, y_c*ones(1, Nsim), 'k--')
-% hold off;
-% title('outputs')
-% legend('alpha','theta')
-% grid on
-% subplot(2,1,2)
-% plot(1:Nsim, data.U);
-% hold on;
-% plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
-% hold off
-% title('inputs')
-% grid on
+figure()
+subplot(2,1,1)
+plot(1:Nsim, data.Y);
+hold on;
+plot(1:Nsim, y_c*ones(1, Nsim), 'k--')
+hold off;
+title('outputs')
+legend('alpha','theta')
+grid on
+subplot(2,1,2)
+plot(1:Nsim, data.U);
+hold on;
+plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
+hold off
+title('inputs')
+grid on
 
 H = Tset.A;
 gamma = Tset.b;
@@ -351,6 +355,28 @@ B_aug = [str_discr_sys.B;0];
 C_aug = [str_discr_sys.C, zeros(2,1)];
 D_aug = str_discr_sys.D;
 
+Extr_states = [eye(4),zeros(4,1)];
+Kw = [0,0,0,0,1];
+
+Qk = blkdiag((1e-2)*eye(4), 1e-7);
+Rk = 1e-12;
+
+x0 = [0;0;0;0;0];
+%% Deactivate disturbance rejection
+% A_aug = str_discr_sys.A;
+% B_aug = str_discr_sys.B;
+% C_aug = str_discr_sys.C;
+% D_aug = str_discr_sys.D;
+% 
+% Extr_states = [eye(4)];
+% Kw = [0,0,0,0];
+% 
+% Qk = (1e-1)*eye(4);
+% Rk = 1e-12;
+% 
+% x0 = [0;0;0;0];
+
+%%
 % %% Creating the nonlinear multistage mpc object
 % 
 % mpc_model = mpt3_model;
