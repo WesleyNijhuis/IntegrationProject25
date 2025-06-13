@@ -5,24 +5,26 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/prbs 1 alpha.mat');   % loading alpha's
-load('../Data/prbs 1 theta.mat');   % loading theta's
-load('../Data/prbs 1 input.mat');   % loading inputs
+load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
+load('../DataExp/prbs 1 theta.mat');   % loading theta's
+load('../DataExp/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
 data_end = 20000;
 data_begin = 1;
-ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
-uin = u(data_begin:data_end,2);   
+ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end) - mean(theta(data_begin:data_end))];
+%ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
+%uin = u(data_begin:data_end,2);   
+uin = u(data_begin:data_end,2)-mean(u(data_begin:data_end,2));   
 
 training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -36,6 +38,9 @@ training_data_u{1} = uin;
 
 dt = 0.01;
 t = 0:dt:(data_end - data_begin)*dt;
+%% Setting system parameters for simulink
+h=0.01;
+epsilon=0.00242;
 
 %% Singular values
  s = 100;
@@ -70,10 +75,10 @@ init_sys = idss(A0, B0, C0, D0); %x0 is 0
 init_sys.Ts = 0;
 
 training_data = iddata(training_data_y{2},training_data_u{2},dt);
-opt = ssestOptions('Display','on','SearchMethod','gna');
+opt = ssestOptions('Display','off','SearchMethod','gna');
 opt.SearchOptions.MaxIterations = 4000;
 opt.SearchOptions.Tolerance = 1e-12;
-opt.InitialState = 'estimate';
+opt.InitialState = 'zero';
 %opt.OutputOffset = [mean(ymeas(:,1));mean(ymeas(:,2))]; %CHECK IF THIS WORKS BETTER
 opt.N4Weight = 'MOESP';
 opt.N4Horizon = [s/2 s/2 s/2]; % This sets Moesp to PO-MOESP
@@ -94,9 +99,9 @@ Cbar = sys.C
 D = sys.D
 sys.x0 = zeros(n,1);
 
-Config = RespConfig(Amplitude=0.01,Delay=2);
+%Config = RespConfig(Amplitude=0.01,Delay=2);
 figure()
-impulse(sys, Config)
+impulse(sys)
 
 eig(sys.A)
 
@@ -137,7 +142,7 @@ sys_init3.Structure.B.Free = [0;0;1;1];
 sys_init3.Structure.C.Free = zeros(2,4);
 sys_init3.Structure.D.Free = [0;0];
 
-%opt.Regularization.R = 1e16*eye(10);
+%opt.Regularization.R = 1e10*blkdiag(1,1,zeros(8,8));
 %opt.Regularization.Nominal = 'zero';
 struct_sys = pem(training_data, sys_init3,opt);
 
@@ -149,16 +154,17 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../DataExp/val8rad alpha.mat');   % loading alpha's
+load('../DataExp/val8rad theta.mat');   % loading theta's
+load('../DataExp/val8rad input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
 
-data_end = 20000; %for debugging
+data_end = 2000; %for debugging
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
+%ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
 uin = u(data_begin:data_end,2);     
 
 validation_data = [ymeas,uin];
@@ -194,7 +200,7 @@ mpc_C = eye(4);
 mpc_D = zeros(4,1);
 
 Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
-R_mpc = 1e-1;
+R_mpc = 1e-2;
 
 [P,K,~] = idare(str_discr_sys.A,str_discr_sys.B,Q_mpc,R_mpc);
 
@@ -203,10 +209,10 @@ R_mpc = 1e-1;
 
 mpt3_model = ss(str_discr_sys.A,str_discr_sys.B,str_discr_sys.C,str_discr_sys.D,dt);
 mpc_mpt3 = LTISystem(mpt3_model);
-mpc_mpt3.x.min = [-pi/2; -pi/4; -inf; -inf];
-mpc_mpt3.x.max = [pi/2; pi/4; inf; inf];
-mpc_mpt3.u.min = -10;
-mpc_mpt3.u.max = 10;
+mpc_mpt3.x.min = [-pi/2; -inf; -inf; -inf];
+mpc_mpt3.x.max = [pi/2; inf; inf; inf];
+mpc_mpt3.u.min = -1;
+mpc_mpt3.u.max = 1;
 mpc_mpt3.x.with('reference');
 mpc_mpt3.x.reference = 'free';
 
@@ -219,35 +225,35 @@ mpc_mpt3.x.terminalSet = Tset;
 mpc_mpt3.x.with('terminalPenalty');
 mpc_mpt3.x.terminalPenalty = QuadFunction(P);
 
-mpt_horizon = 40;
+mpt_horizon = 10;
 ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 
 reference = [1;0;0;0];
 
 loop = ClosedLoop(ctrl, mpc_mpt3);
 x0 = [-1; 0; 0; 0];
-Nsim = mpt_horizon;
+Nsim = round(mpt_horizon*2);
 data = loop.simulate(x0, Nsim, 'x.reference', reference);
 
 u_c = [1;-1];
 y_c = [pi/2;-pi/2];
 
-figure()
-subplot(2,1,1)
-plot(1:Nsim, data.Y);
-hold on;
-plot(1:Nsim, y_c*ones(1, Nsim), 'k--')
-hold off;
-title('outputs')
-legend('alpha','theta')
-grid on
-subplot(2,1,2)
-plot(1:Nsim, data.U);
-hold on;
-plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
-hold off
-title('inputs')
-grid on
+% figure()
+% subplot(2,1,1)
+% plot(1:Nsim, data.Y);
+% hold on;
+% plot(1:Nsim, y_c*ones(1, Nsim), 'b--')
+% hold off;
+% title('outputs')
+% legend('alpha','theta')
+% grid on
+% subplot(2,1,2)
+% plot(1:Nsim, data.U);
+% hold on;
+% plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
+% hold off
+% title('inputs')
+% grid on
 
 H = Tset.A;
 gamma = Tset.b;
@@ -264,9 +270,7 @@ params = [vars.x(:,1); vars.filters.x.reference];
 decision = vars.u;
 fast_opt = optimizer(constr, obj, sdpsettings('solver','quadprog'), params, decision);
 
-function u0 = get_mu(fast_opt,x,reference)
-    u0 = fast_opt{[x; reference]};
-end
+
 
 % function u0 = get_mu(ctrl,x,reference)
 %     u0 = ctrl.evaluate(x,'x.reference', reference);
@@ -301,6 +305,8 @@ legend('fast mpc','original mpc')
 grid on
 
 %% Testing fast mpc
+close all;
+
 x_his = zeros(4,Nsim);
 y_his = zeros(2,Nsim);
 u_his = zeros(1,Nsim);
@@ -320,18 +326,119 @@ lqr = mpt3_model;
 lqr.A = mpt3_model.A - mpt3_model.B * K;
 DC_gain = dcgain(lqr);
 lqr.B = mpt3_model.B / DC_gain(1);
-y_lqr = step(lqr);
+
+tsim = 0:dt:Nsim;
+[y_lqr,~,x_lqr] = lsim(lqr,ones(Nsim/dt+1,1),tsim,x0);
+u_lqr = -K*x_lqr.' + ones(Nsim/dt+1,1)/DC_gain(1);
 
 figure()
 plot(1:Nsim,y_his)
 hold on
-plot(1:Nsim,data.Y, '--')
-plot(1:Nsim, y_lqr(1:40,:).')
+plot(1:Nsim, y_lqr(1:Nsim,:).', '--')
+plot(1:Nsim, y_c*ones(1, Nsim), 'k--')
 hold off
-legend('fast mpc alpha','fast mpc theta','original mpc alpha','original mpc theta', 'lqr alpha','lqr theta')
+legend('fast mpc alpha','fast mpc theta','lqr alpha','lqr theta')
 grid on
 
+figure()
+plot(1:Nsim,u_his)
+hold on
+plot(1:Nsim, u_lqr(:,1:Nsim),'r--')
+plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
+hold off
+legend('fast mpc control inputs','lqr control inputs')
+grid on
 
+%% Augmenting state space for disturbance rejection
+
+A_aug = [str_discr_sys.A,str_discr_sys.B;
+        zeros(1,n), 1];
+B_aug = [str_discr_sys.B;0];
+C_aug = [str_discr_sys.C, zeros(2,1)];
+D_aug = str_discr_sys.D;
+
+Extr_states = [eye(4),zeros(4,1)];
+Kw = [0,0,0,0,1];
+
+Qk = blkdiag(1e-2,2e-3,1e-2,1e-2,1e-7);
+Rk = 1e-9;
+
+x0 = [0;0;0;0;0];
+%% Deactivate disturbance rejection
+% A_aug = str_discr_sys.A;
+% B_aug = str_discr_sys.B;
+% C_aug = str_discr_sys.C;
+% D_aug = str_discr_sys.D;
+% 
+% Extr_states = [eye(4)];
+% Kw = [0,0,0,0];
+% 
+% Qk = (1e-1)*eye(4);
+% Rk = 1e-12;
+% 
+% x0 = [0;0;0;0];
+
+%%
+% %% Creating the nonlinear multistage mpc object
+% 
+% mpc_model = mpt3_model;
+% 
+% 
+% % creating mpcobject
+% MPC1 = nlmpcMultistage(mpc_model,dt);
+% 
+% % setting Q,R and N
+% MPC1.PredictionHorizon = 40;
+% MPC1.Weights.OutputVariables = [1e1, 1e-1, 1e-3,1e-3];
+% MPC1.Weights.ManipulatedVariables = 1e-1;
+% 
+% % Setting the terminal set
+% setterminal(MPC1, struct('A', H, 'b', gamma));
+% 
+% % Setting the terminal cost
+% P = idare(mpc_model.A, mpc_model.B,Q_mpc, R_mpc);
+% MPC1.TerminalWeight = P;
+
+% %% implementing the control
+% '-----'
+% Tsim = 10;
+% 
+% mdl = 'mpc_test';
+% load_system(mdl);
+% set_param(mdl, 'FastRestart', 'on');
+% set_param(mdl, 'Solver', 'FixedStepDiscrete', 'FixedStep', num2str(h), 'StopTime', num2str(h));
+% 
+% xk = x0;   % initial state
+% X = zeros(length(x0), Tsim);
+% U = zeros(1, Tsim);
+% 
+% for k = 1:Tsim
+%     tic
+%     uk = -K*xk;   % your YALMIP function
+% 
+%     % Store
+%     X(:,k) = xk;
+%     U(:,k) = uk;
+% 
+%     simIn = Simulink.SimulationInput(mdl);
+%     simIn = simIn.setVariable('u', uk);  % set Constant block value
+%     %simIn = simIn.setInitialState(struct('x', xk));  % optional if plant is stateful
+% 
+%     out = sim(simIn);
+% 
+%     % Get next state from Outport
+%     %xk = out.yout.getElement('x_out').Values.Data(end,:)';
+%     toc
+% end
+% 
+% set_param(mdl, 'FastRestart', 'off');
+
+%% Functions
+
+function u0 = get_mu(fast_opt,x,reference)
+    mu = fast_opt{[x; reference]};
+    u0=mu(1);
+end
 %% MPC() synthesis
 % h=dt;
 % 
