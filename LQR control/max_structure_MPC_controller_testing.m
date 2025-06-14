@@ -15,7 +15,7 @@ data_end = 20000;
 data_begin = 1;
 ymeas = [alpha(data_begin:data_end) - mean(alpha(data_begin:data_end)), theta(data_begin:data_end)];
 %ymeas = [alpha(data_begin:data_end), theta(data_begin:data_end)];
-uin = u(data_begin:data_end,2);   
+uin = u(data_begin:data_end,2) - mean(u(data_begin:data_end,2));   
 
 training_data_y{2} = ymeas;
 training_data_u{2} = uin;

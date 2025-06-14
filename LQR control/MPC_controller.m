@@ -5,9 +5,9 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../DataExp/prbs 1 alpha.mat');   % loading alpha's
-load('../DataExp/prbs 1 theta.mat');   % loading theta's
-load('../DataExp/prbs 1 input.mat');   % loading inputs
+load('../Data/prbs 1 alpha.mat');   % loading alpha's
+load('../Data/prbs 1 theta.mat');   % loading theta's
+load('../Data/prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -22,9 +22,9 @@ training_data_y{2} = ymeas;
 training_data_u{2} = uin;
 
 %training set 1: sweep
-load('../DataExp/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
-load('../DataExp/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
-load('../DataExp/doublesweep 8 epsilon00242 input.mat');   % loading inputs
+load('../Data/doublesweep 8 epsilon00242 alpha.mat');   % loading alpha's
+load('../Data/doublesweep 8 epsilon00242 theta.mat');   % loading theta's
+load('../Data/doublesweep 8 epsilon00242 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -154,9 +154,9 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../DataExp/val8rad alpha.mat');   % loading alpha's
-load('../DataExp/val8rad theta.mat');   % loading theta's
-load('../DataExp/val8rad input.mat');   % loading inputs
+load('../Data/val8rad alpha.mat');   % loading alpha's
+load('../Data/val8rad theta.mat');   % loading theta's
+load('../Data/val8rad input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -174,6 +174,7 @@ compare(validation_data,sys, struct_sys)
 
 figure()
 resid(validation_data, struct_sys,ropt)
+
 %% Turning the pendulum upside down
 
 As = struct_sys.A;
@@ -225,7 +226,7 @@ mpc_mpt3.x.terminalSet = Tset;
 mpc_mpt3.x.with('terminalPenalty');
 mpc_mpt3.x.terminalPenalty = QuadFunction(P);
 
-mpt_horizon = 10;
+mpt_horizon = 40;
 ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 
 reference = [1;0;0;0];
@@ -364,6 +365,89 @@ Qk = blkdiag(1e-2,2e-3,1e-2,1e-2,1e-7);
 Rk = 1e-9;
 
 x0 = [0;0;0;0;0];
+
+%% Visualizing the terminal set
+close all;
+
+c1 = 0;
+c2 = 0;
+
+H1 = H(:, 1);
+H2 = H(:, 2);
+H3 = H(:, 3);
+H4 = H(:, 4);
+
+gamma = gamma - H3 * c1 - H4 * c2;
+A = [H1, H2];
+
+x1_range = linspace(-2, 2, 2000);
+x2_range = linspace(-2, 2, 2000);
+[X1, X2] = meshgrid(x1_range, x2_range);
+points = [X1(:), X2(:)]';
+
+terminal = all(A * points <= gamma, 1);
+X1_terminal = X1(terminal);
+X2_terminal = X2(terminal);
+P = [X1_terminal(:), X2_terminal(:)];
+
+if ~isempty(P)
+    K = convhull(P);
+    figure;
+    fill(P(K,1), P(K,2), [0.2 0.6 1], 'FaceAlpha', 0.5, 'EdgeColor', 'k');
+    xlabel('\alpha'); ylabel('\theta');
+    xlim([-1.6,1.6])
+    xline(-pi/2,'k--');
+    xline(pi/2,'k--')
+    hold on
+    plot([0.6,0.9,1.2,1.5], [0,0,0,0],'r--')
+    plot(1.5, 0,'ro')
+    hold off
+    title('Projection of $X_f$ for $\dot \alpha,\dot \theta = 0$','interpreter','latex');
+    axis equal;
+    grid on;
+else
+    disp('No terminal set found: constraints are infeasible.');
+end
+
+%% Animation
+figure;
+for c = linspace(0, pi/3, 200)
+    H1 = H(:, 1);
+    H234 = H(:, 2:4);
+
+    gamma_new = gamma - H1 * c;
+
+    x2_range = linspace(-2, 2, 100);
+    x3_range = linspace(-50, 50, 100);
+    x4_range = linspace(-50, 50, 100);
+
+    [X2, X3, X4] = meshgrid(x2_range, x3_range, x4_range);
+    points = [X2(:), X3(:), X4(:)]';
+
+    feasible = all(H234 * points <= gamma_new, 1);
+    P = points(:, feasible)';
+
+    clf;
+    if size(P, 1) >= 4
+        K = convhull(P(:,1), P(:,2), P(:,3));
+        trisurf(K, P(:,1), P(:,2), P(:,3), 'FaceColor', [0.2 0.6 1], ...
+            'FaceAlpha', 0.5, 'EdgeColor', 'k');
+        xlabel('x_2');
+        ylabel('x_3');
+        zlabel('x_4');
+        title(sprintf('Filled feasible set, x_1 = %.2f', c));
+        axis tight;
+        view(3);
+        grid on;
+    else
+        title(sprintf('Infeasible, x_1 = %.2f', c));
+        grid on;
+    end
+    drawnow;
+end
+
+
+
 %% Deactivate disturbance rejection
 % A_aug = str_discr_sys.A;
 % B_aug = str_discr_sys.B;
