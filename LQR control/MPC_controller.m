@@ -109,6 +109,9 @@ figure()
 ropt = residOptions;
 ropt.MaxLag = 100;
 resid(training_data, sys,ropt)
+
+figure()
+compare(training_data, sys,ropt)
 %% Enforcing structure via state coordinate transformation (T = [C;CA])
 
 T = [sys.C;sys.C*sys.A];
@@ -154,9 +157,9 @@ resid(training_data, struct_sys,ropt)
 
 %% Validation (for every test do two runs)
 
-load('../Data/val8rad alpha.mat');   % loading alpha's
-load('../Data/val8rad theta.mat');   % loading theta's
-load('../Data/val8rad input.mat');   % loading inputs
+load('../Data/colored0.05 prbs 1 alpha.mat');   % loading alpha's
+load('../Data/colored0.05 prbs 1 theta.mat');   % loading theta's
+load('../Data/colored0.05 prbs 1 input.mat');   % loading inputs
 
 alpha = alpha(:,2);
 theta = theta(:,2);
@@ -239,22 +242,22 @@ data = loop.simulate(x0, Nsim, 'x.reference', reference);
 u_c = [1;-1];
 y_c = [pi/2;-pi/2];
 
-% figure()
-% subplot(2,1,1)
-% plot(1:Nsim, data.Y);
-% hold on;
-% plot(1:Nsim, y_c*ones(1, Nsim), 'b--')
-% hold off;
-% title('outputs')
-% legend('alpha','theta')
-% grid on
-% subplot(2,1,2)
-% plot(1:Nsim, data.U);
-% hold on;
-% plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
-% hold off
-% title('inputs')
-% grid on
+figure()
+subplot(2,1,1)
+plot(1:Nsim, data.Y);
+hold on;
+plot(1:Nsim, y_c*ones(1, Nsim), 'b--')
+hold off;
+title('outputs')
+legend('alpha','theta')
+grid on
+subplot(2,1,2)
+plot(1:Nsim, data.U);
+hold on;
+plot(1:Nsim, u_c*ones(1, Nsim), 'k--')
+hold off
+title('inputs')
+grid on
 
 H = Tset.A;
 gamma = Tset.b;

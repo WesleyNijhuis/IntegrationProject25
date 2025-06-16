@@ -5,9 +5,9 @@ training_data_y = cell(1,2);
 training_data_u = cell(1,2);
 
 %training set 2: square sweep
-load('../Data/prbs 1 alpha.mat');   % loading alpha's
-load('../Data/prbs 1 theta.mat');   % loading theta's
-load('../Data/prbs 1 input.mat');   % loading inputs
+load('../Data/colored0.05 prbs 1 alpha.mat');   % loading alpha's
+load('../Data/colored0.05 prbs 1 theta.mat');   % loading theta's
+load('../Data/colored0.05 prbs 1 input.mat');   % loading inputs
 alpha = alpha(:,2);
 theta = theta(:,2);
 
@@ -42,15 +42,15 @@ t = 0:dt:(data_end - data_begin)*dt;
 close all;
 
 figure()
-plot((1/dt)/20001*(0:20001-1),abs(fft(alpha)))
-hold on
-plot((1/dt)/20001*(0:20001-1),abs(fft(theta)))
-xline(0.01,'k--')
-xline(12,'k--')
-hold off
+plot((1/dt)/20001*(0:20001-1),abs(fft(u(:,2))))
+% hold on
+% plot((1/dt)/20001*(0:20001-1),abs(fft(theta)))
+% xline(0.01,'k--')
+% xline(12,'k--')
+% hold off
 grid on
 legend('FFT of alpha','FFT of theta')
-xlim([0,20]);
+xlim([0,30]);
 ylim([0,600]);
 yscale log
 
