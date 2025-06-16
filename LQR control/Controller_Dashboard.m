@@ -225,7 +225,7 @@ mpc_mpt3.x.terminalSet = Tset;
 mpc_mpt3.x.with('terminalPenalty');
 mpc_mpt3.x.terminalPenalty = QuadFunction(P);
 
-mpt_horizon = 10;
+mpt_horizon = 20;
 ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 
 reference = [1;0;0;0];
@@ -360,7 +360,7 @@ D_aug = str_discr_sys.D;
 Extr_states = [eye(4),zeros(4,1)];
 Kw = [0,0,0,0,1];
 
-Qk = blkdiag(1e-2,2e-3,1e-2,1e-2,1e-7);
+Qk = blkdiag(1e-2,1e-3,1e-2,1e-2,1e-7); %0.7 mpc, 1 for lqr
 Rk = 1e-9;
 
 x0 = [0;0;0;0;0];
