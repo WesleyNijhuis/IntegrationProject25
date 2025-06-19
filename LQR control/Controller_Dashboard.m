@@ -385,7 +385,6 @@ r = 0.085;
 
 % Moment of inertia about pivot (kg-m^2)
 Jr = mr*r^2/3;
-%Jr = mr*r^2/12;
 % Equivalent Viscous % % Pendulum Link
 % Mass (kg)
 mp = 0.024;
