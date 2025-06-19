@@ -203,7 +203,7 @@ mpc_B = str_discr_sys.B(1:4);
 mpc_C = eye(4);
 mpc_D = zeros(4,1);
 
-Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
+Q_mpc = diag([1e1, 1e3, 1e-3,1e-3]);
 R_mpc = 1e-2;
 
 [P,K,~] = idare(str_discr_sys.A,str_discr_sys.B,Q_mpc,R_mpc);
@@ -236,7 +236,7 @@ reference = [1;0;0;0];
 
 loop = ClosedLoop(ctrl, mpc_mpt3);
 x0 = [-1; 0; 0; 0];
-Nsim = round(mpt_horizon*2);
+Nsim = round(mpt_horizon*4);
 data = loop.simulate(x0, Nsim, 'x.reference', reference);
 
 u_c = [1;-1];
