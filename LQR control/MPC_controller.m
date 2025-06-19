@@ -203,7 +203,7 @@ mpc_B = str_discr_sys.B(1:4);
 mpc_C = eye(4);
 mpc_D = zeros(4,1);
 
-Q_mpc = diag([1e1, 1e3, 1e-3,1e-3]);
+Q_mpc = diag([1e1, 1e-1, 1e-3,1e-3]);
 R_mpc = 1e-2;
 
 [P,K,~] = idare(str_discr_sys.A,str_discr_sys.B,Q_mpc,R_mpc);
@@ -229,7 +229,7 @@ mpc_mpt3.x.terminalSet = Tset;
 mpc_mpt3.x.with('terminalPenalty');
 mpc_mpt3.x.terminalPenalty = QuadFunction(P);
 
-mpt_horizon = 40;
+mpt_horizon = 20;
 ctrl = MPCController(mpc_mpt3,mpt_horizon);%.toExplicit();
 
 reference = [1;0;0;0];
