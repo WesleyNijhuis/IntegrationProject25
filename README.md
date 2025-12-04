@@ -5,21 +5,21 @@ The project consisted of three fases. First, a first principles model of the Fur
 
 
 ## The Furuta pendulum
-![pendulum](https://github.com/WesleyNijhuis/IntegrationProject25/Report/furutapendulum.png
+![pendulum](./Report/figures/furutapendulum.png)
 
 ## Schemes of LQG and MPC
-![mpc](https://github.com/WesleyNijhuis/IntegrationProject25/Report/MPC.png
+![mpc](./Report/figures/MPC.png)
 
-![mpc](https://github.com/WesleyNijhuis/IntegrationProject25/Report/LQG.png
+![mpc](./Report/figures/LQG.png)
 
 ## Results of OE enhancement vs PEM enhancement after subspace identification and strucuring transformation
-![mpc](https://github.com/WesleyNijhuis/IntegrationProject25/Report/OEvsPEM.png
+![mpc](./Report/figures/OEvsPEM.png)
 
 ## Terminal set of MPC controller
-![Xf](https://github.com/WesleyNijhuis/IntegrationProject25/Report/X_f.png
+![Xf](./Report/figures/X_f.png)
 
 ## Tracking results of MPC in the presence of disturbances
-![tracking](https://github.com/WesleyNijhuis/IntegrationProject25/Report/figuresDemo MPC.png
+![tracking](./Report/figures/Demo_MPC.png)
 
 
 
